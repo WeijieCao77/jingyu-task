@@ -91,45 +91,75 @@ def run_tool(name: str, args: dict) -> str:
     return json.dumps({"error": f"unknown tool {name}"})
 
 
-def answer_question(question: str, model: str | None = None, max_steps: int = 5) -> str:
-    """Run the Anthropic tool-use loop to answer a guard's NL question."""
-    import anthropic
-
-    cfg = get_settings()
-    repo.init_db(cfg.database_url)
-    client = anthropic.Anthropic(api_key=cfg.anthropic_api_key or None)
+def _system_prompt(cfg) -> str:
     now = datetime.now(timezone.utc).astimezone()
-
-    system = (
+    return (
         "你是工业园区的门卫数据助手。基于访客登记数据库回答保安的中文提问。"
         f"当前时间是 {now.isoformat()}（{cfg.timezone}）。"
         "需要时间范围时（本周/今天/这个月等）请自行换算成 ISO8601 传给工具。"
         "用简短中文口语回答，给出具体数字。"
     )
-    messages: list[dict] = [{"role": "user", "content": question}]
 
+
+def _answer_openai(question: str, model: str, max_steps: int) -> str:
+    import json as _json
+
+    import openai
+
+    cfg = get_settings()
+    client = openai.OpenAI(api_key=cfg.openai_api_key or None)
+    tools = [
+        {"type": "function", "function": {
+            "name": t["name"], "description": t["description"], "parameters": t["input_schema"]
+        }} for t in TOOLS
+    ]
+    messages = [
+        {"role": "system", "content": _system_prompt(cfg)},
+        {"role": "user", "content": question},
+    ]
+    for _ in range(max_steps):
+        resp = client.chat.completions.create(model=model, messages=messages, tools=tools)
+        msg = resp.choices[0].message
+        if not msg.tool_calls:
+            return (msg.content or "").strip()
+        messages.append(msg)
+        for call in msg.tool_calls:
+            out = run_tool(call.function.name, _json.loads(call.function.arguments or "{}"))
+            messages.append({"role": "tool", "tool_call_id": call.id, "content": out})
+    return "（查询步数超限，请把问题问得更具体一些。）"
+
+
+def _answer_anthropic(question: str, model: str, max_steps: int) -> str:
+    import anthropic
+
+    cfg = get_settings()
+    client = anthropic.Anthropic(api_key=cfg.anthropic_api_key or None)
+    messages: list[dict] = [{"role": "user", "content": question}]
     for _ in range(max_steps):
         resp = client.messages.create(
-            model=model or cfg.llm_model,
-            max_tokens=1024,
-            system=system,
-            tools=TOOLS,
-            messages=messages,
+            model=model, max_tokens=1024, system=_system_prompt(cfg),
+            tools=TOOLS, messages=messages,
         )
         if resp.stop_reason != "tool_use":
             return "".join(b.text for b in resp.content if b.type == "text").strip()
-
         messages.append({"role": "assistant", "content": resp.content})
         results = []
         for block in resp.content:
             if block.type == "tool_use":
                 out = run_tool(block.name, block.input or {})
-                results.append(
-                    {"type": "tool_result", "tool_use_id": block.id, "content": out}
-                )
+                results.append({"type": "tool_result", "tool_use_id": block.id, "content": out})
         messages.append({"role": "user", "content": results})
-
     return "（查询步数超限，请把问题问得更具体一些。）"
+
+
+def answer_question(question: str, model: str | None = None, max_steps: int = 5) -> str:
+    """Answer a guard's NL question; uses whichever LLM provider is configured."""
+    cfg = get_settings()
+    repo.init_db(cfg.database_url)
+    model = model or cfg.llm_model
+    if cfg.llm_provider == "anthropic":
+        return _answer_anthropic(question, model, max_steps)
+    return _answer_openai(question, model, max_steps)
 
 
 def main() -> None:

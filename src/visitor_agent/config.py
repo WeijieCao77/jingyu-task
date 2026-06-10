@@ -18,8 +18,9 @@ class Settings(BaseSettings):
     )
 
     # ---- LLM brain ----
-    llm_provider: str = "anthropic"          # anthropic | openai
-    llm_model: str = "claude-haiku-4-5"
+    # 默认全 OpenAI（只需一个 key 把线路跑通）；想用 Claude 当大脑改成 anthropic。
+    llm_provider: str = "openai"             # openai | anthropic
+    llm_model: str = "gpt-4o-mini"           # anthropic 时用 claude-haiku-4-5
     anthropic_api_key: str = ""
 
     # ---- STT ----

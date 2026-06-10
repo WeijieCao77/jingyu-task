@@ -73,6 +73,16 @@
 - ✅ 测试 24 → **26 全绿**（新增本地确认按钮 + notify=none）。
 - 🎯 现在用户要做的全部 = 拿两个 API key 粘贴 + 体验测试。其余全自动、零额外账号。
 
+## 第五轮（单 key 简化 + 扫码版做出来）
+
+- ✅ **默认改为全 OpenAI（单 key）**：`LLM_PROVIDER=openai` / `LLM_MODEL=gpt-4o-mini`，只需一个 `OPENAI_API_KEY` 跑通 STT+LLM+TTS。Anthropic（Claude 大脑）降级为可选升级。
+- ✅ **门卫查询 Agent 改为 provider-aware**：OpenAI / Anthropic 双驱动，单 key 下加分项不再报错。
+- ✅ **扫码版做出来（明天可测）**：`QR_DEMO.md` 两条路（路 A=LiveKit Cloud 免费账号，任何网络；路 B=本地 LiveKit + 同一 WiFi，零账号），各含可直接喂本地 CC 的 prompt；`scripts/run_tunnel.sh`（cloudflared 免账号隧道）；`/voice` 手机端音频加固（playsinline + 手势 play）。
+- ✅ **密钥/配置说明**：README 新增"🔐 密钥与配置（public 必读）"——密钥存 `.env`(gitignored)、别人 clone 后 `cp .env.example .env` 填自己的、单/双 key 选择；审计确认仓库无真实密钥泄漏。
+- ✅ `USER_TODO.md` 重写：默认单 key（OpenAI）教程 + 扫码版 LiveKit Cloud 三个值教程 + 安全说明。
+- ✅ 测试仍 **26 全绿**。
+- 🎯 现在最简验收 = 一个 OpenAI key → 本地 CC 全自动 → 网页说话 + 后台放行；扫码版按 QR_DEMO.md。
+
 ## 怎么快速验收（建议顺序）
 
 1. `PYTHONPATH=src pytest -q` → 应 16 passed。

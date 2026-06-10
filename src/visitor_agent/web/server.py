@@ -291,7 +291,9 @@ btn.onclick=async()=>{
     const d=await r.json(); if(d.error){throw new Error(d.error);}
     const room=new LivekitClient.Room();
     room.on(LivekitClient.RoomEvent.TrackSubscribed,(track)=>{
-      if(track.kind==='audio'){const el=track.attach();document.body.appendChild(el);}});
+      if(track.kind==='audio'){const el=track.attach();el.autoplay=true;
+        el.setAttribute('playsinline','');el.muted=false;document.body.appendChild(el);
+        el.play&&el.play().catch(()=>{});}});
     room.on(LivekitClient.RoomEvent.Disconnected,()=>{st.textContent='已挂断';mic.style.display='none';btn.disabled=false;});
     await room.connect(d.url,d.token);
     await room.localParticipant.setMicrophoneEnabled(true);

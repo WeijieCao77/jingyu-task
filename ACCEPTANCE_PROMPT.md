@@ -1,7 +1,7 @@
 # 🎬 验收：一段 Prompt 让本地 Claude Code 全自动起服务
 
-**你只需要做一件事**：准备两个 API key（`OPENAI_API_KEY`、`ANTHROPIC_API_KEY`）——
-怎么拿见 **[USER_TODO.md](USER_TODO.md)**（手把手图文教程）。
+**你只需要做一件事**：准备**一个** API key（`OPENAI_API_KEY`，全 OpenAI 跑通线路）——
+怎么拿见 **[USER_TODO.md](USER_TODO.md)**（手把手图文教程）。手机扫码版见 **[QR_DEMO.md](QR_DEMO.md)**。
 
 其余一切（装依赖、本地起 LiveKit、下载模型、配置、起服务、隧道）都由本地 Claude Code 完成。
 **不需要你注册 LiveKit / Discord / 任何其他账号。** 保安通知默认走"后台 Dashboard 点放行"，零账号。
@@ -17,8 +17,8 @@
 除了我提供的两个 API key，其它你全部自己完成；任何报错你先自己排查修复（不改架构），
 需要我做的事必须给我详细到"点哪里/输入什么"的步骤。
 
-【0. 前置：只问我要这两个密钥】
-- 问我要 OPENAI_API_KEY 和 ANTHROPIC_API_KEY（我会粘贴给你；若我不会拿，按 USER_TODO.md 指引我）。
+【0. 前置：只问我要一个密钥】
+- 只问我要 OPENAI_API_KEY（全 OpenAI：STT+LLM+TTS，一个 key 跑通；若我不会拿，按 USER_TODO.md 指引我）。
 - 其它一律不要问我账号；LiveKit 用本地 Docker 起，通知用本地 Dashboard。
 
 【1. 安装依赖】
@@ -34,8 +34,9 @@
 
 【3. 写 .env】
 - cp .env.example .env，然后写入：
-  ANTHROPIC_API_KEY=<我给的>
   OPENAI_API_KEY=<我给的>
+  LLM_PROVIDER=openai           # 全 OpenAI，一个 key 跑通
+  LLM_MODEL=gpt-4o-mini
   LIVEKIT_URL=ws://localhost:7880
   LIVEKIT_API_KEY=devkey
   LIVEKIT_API_SECRET=secret
@@ -71,11 +72,10 @@
 
 ---
 
-## 之后的"精修"路线（不影响现在验收）
+## 其它版本
 
-- **扫码即用**：起一个无账号公网隧道（cloudflared quick tunnel：`cloudflared tunnel --url http://localhost:8080`），
-  把得到的 https 地址填回 `.env` 的 `PUBLIC_BASE_URL` 重启 web，然后打开 `/qr`，手机扫码即可在手机上和 AI 对话。
+- **手机扫码版**：见 **[QR_DEMO.md](QR_DEMO.md)**（已做好，明天即可测；路 A 用 LiveKit Cloud 免费账号，路 B 同一 WiFi 零账号）。
 - **真实电话**：接 Twilio 号码 → LiveKit SIP（需要你的 Twilio 账号，按 SETUP_CHECKLIST.md 第 5 步）。
 - **外部通知**：想让通知发到手机群，把 `NOTIFY_CHANNEL` 改 `discord` 并填 webhook（见 USER_TODO.md 可选部分）。
 
-> 一句话：现在这版**只要两个 API key 就能在你电脑上点开网页和 AI 说话、后台点放行**，其余全自动。
+> 一句话：现在这版**只要一个 OpenAI key 就能在你电脑上点开网页和 AI 说话、后台点放行**，其余全自动。
