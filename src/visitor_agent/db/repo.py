@@ -112,6 +112,25 @@ def find_recent_visit_by_plate(plate: str) -> Visit | None:
         )
 
 
+def find_recent_visit(plate: str | None = None, phone: str | None = None) -> Visit | None:
+    """Most recent prior visit matching plate OR phone — returning-customer lookup.
+
+    Plate is tried first (it's known earliest in the call); phone is the fallback
+    so a returning driver in a different car is still recognised."""
+    with _session() as s:
+        if plate:
+            hit = s.scalar(
+                select(Visit).where(Visit.plate == plate).order_by(Visit.created_at.desc())
+            )
+            if hit:
+                return hit
+        if phone:
+            return s.scalar(
+                select(Visit).where(Visit.phone == phone).order_by(Visit.created_at.desc())
+            )
+        return None
+
+
 # ----- read helpers for the guard query agent -----
 
 def count_visits(since: datetime | None = None, until: datetime | None = None,

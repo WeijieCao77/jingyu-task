@@ -25,7 +25,7 @@ class Notifier(Protocol):
         ...
 
 
-LookupReturning = Callable[[str], dict | None]
+LookupReturning = Callable[[str | None, str | None], dict | None]
 # (kind, role, text, payload) -> None   — optional dashboard event sink
 EventSink = Callable[[str, str | None, str | None, dict | None], None]
 
@@ -61,17 +61,16 @@ class RegistrationSession:
         reason: str | None = None,
         phone: str | None = None,
     ) -> str:
-        plate_was_unknown = self.info.plate is None
+        prev_plate, prev_phone = self.info.plate, self.info.phone
         self.info.update(plate=plate, company=company, reason=reason, phone=phone)
+        # Newly learned an identifier (plate or phone)?
+        newly_identified = (self.info.plate and self.info.plate != prev_plate) or (
+            self.info.phone and self.info.phone != prev_phone
+        )
 
         hint = ""
-        if (
-            self.info.plate
-            and plate_was_unknown
-            and self.lookup_returning
-            and self.returning_match is None
-        ):
-            prev = self.lookup_returning(self.info.plate)
+        if self.lookup_returning and self.returning_match is None and newly_identified:
+            prev = self.lookup_returning(self.info.plate, self.info.phone)
             if prev:
                 self.returning_match = prev
                 if not self.info.company and prev.get("company"):
@@ -153,8 +152,8 @@ def make_db_lookup() -> LookupReturning:
     """Returning-visitor lookup backed by the DB (used in the live path)."""
     from .db import repo
 
-    def _lookup(plate: str) -> dict | None:
-        visit = repo.find_recent_visit_by_plate(plate)
+    def _lookup(plate: str | None, phone: str | None) -> dict | None:
+        visit = repo.find_recent_visit(plate=plate, phone=phone)
         return visit.to_dict() if visit else None
 
     return _lookup

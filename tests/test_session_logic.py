@@ -30,11 +30,26 @@ def test_complete_blocks_when_incomplete():
 
 
 def test_returning_visitor_prefills_and_hints():
-    def lookup(plate):
-        return {"company": "蓝色鲸鱼", "reason": "送货"} if plate == "沪A12345" else None
+    def lookup(plate, phone):
+        if plate == "沪A12345":
+            return {"company": "蓝色鲸鱼", "reason": "送货"}
+        return None
 
     reg = RegistrationSession(notifier=MockNotifier(), lookup_returning=lookup)
     out = reg.record(plate="沪A12345")
     assert "回访车辆" in out
     # company/reason prefilled from history → only phone remains
     assert reg.info.missing_fields() == ["phone"]
+
+
+def test_returning_visitor_recognized_by_phone():
+    def lookup(plate, phone):
+        if phone == "13800138000":
+            return {"company": "蓝色鲸鱼", "reason": "拜访"}
+        return None
+
+    reg = RegistrationSession(notifier=MockNotifier(), lookup_returning=lookup)
+    # plate unknown / not in history, but phone matches a prior visit
+    out = reg.record(plate="浙B99999", phone="13800138000")
+    assert "回访车辆" in out
+    assert reg.info.company == "蓝色鲸鱼"

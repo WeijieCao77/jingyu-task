@@ -113,7 +113,8 @@ PUT http://<controller-ip>/ISAPI/ITC/Entrance/barrierGateCtrl/channels/1
 ## 7. 数据与加分项
 
 - **数据**：SQLite（本地）/ Neon Postgres（云）—— 换 `DATABASE_URL` 即可，零代码改动。`visits` 表 + plate/phone 索引。
-- **回访识别 ✅**：plate 一进来就查历史，命中则预填单位/事由并提示 LLM"直接确认、别重问"（见 `session_logic.RegistrationSession.record`）。
+- **回访识别 ✅（车牌 + 手机号）**：车牌或手机号一进来就查历史（`repo.find_recent_visit`，先车牌后手机），命中则预填单位/事由并提示 LLM"直接确认、别重问"——换了车的老司机用手机号也能认出（见 `session_logic.RegistrationSession.record`）。
+- **每次开闸都有记录**：保安放行 → `visits.status=confirmed` + `confirmed_at`(=开闸时间)，并在 `call_events` 落一条 `gate`。`visits` 表（plate/phone 建索引）+ `call_events` 表由 `init_db` 首次运行自动建表，无需手动建库。
 - **门卫查询 Agent ✅**：保安自然语言查数据（"本周多少车""高峰时段""张师傅来几次"）。用**安全的参数化工具**（count_visits / list_visits / busiest_hours）而非裸 text-to-SQL（防注入），Claude 选工具+措辞。CLI 与 `/guard/query` 两种入口。
 - **多路并发 ✅**：LiveKit 每通电话独立 job，`RegistrationSession` 每会话独立，无全局可变状态。
 - **Serverless ⚠️ 诚实边界**：LiveKit/Pipecat 的**音频层无法真 Serverless**（Cloudflare Workers 50ms CPU 上限、无长连接），必须常驻进程（VPS/Fly/Railway/容器）。可 Serverless 的是：**`/confirm` 与 `/guard/query` 端点 + Neon DB + CI/CD**。这点讲清=加分，讲不清=被问倒。
