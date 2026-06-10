@@ -1,0 +1,23 @@
+# --- Voice agent runtime (telephony pipeline) ---
+livekit-agents[silero,turn-detector]~=1.5
+livekit-plugins-openai~=1.5
+livekit-plugins-anthropic~=1.5
+livekit-plugins-silero~=1.5
+
+# --- LLM / STT / TTS SDKs (also used by the offline simulator) ---
+anthropic>=0.69
+openai>=2.0
+
+# --- Notification + web confirm endpoint ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+httpx>=0.27
+
+# --- Data / config ---
+SQLAlchemy>=2.0
+pydantic>=2.7
+pydantic-settings>=2.3
+python-dotenv>=1.0
+
+# --- Dev / test ---
+pytest>=8.0

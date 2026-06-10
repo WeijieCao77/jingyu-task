@@ -1,0 +1,109 @@
+"""The structured information the agent must collect, plus light normalization.
+
+This is the heart of "what the call is for": four caller-supplied fields
+(plate, company, reason, phone) and an auto-stamped entry time. Keeping this in
+one small, dependency-free module lets both the live LiveKit agent and the
+offline simulator share identical slot logic, and lets the unit tests exercise
+it without any network.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+# Required fields, in the order a guard would naturally read them back.
+REQUIRED_FIELDS = ("plate", "company", "reason", "phone")
+
+FIELD_LABELS_ZH = {
+    "plate": "车牌号",
+    "company": "来访单位",
+    "reason": "来访事由",
+    "phone": "手机号",
+}
+
+# Chinese mainland plate: province char + letter + 5-6 alnum (incl. new-energy 6).
+_PLATE_RE = re.compile(r"[一-龥][A-Z][A-Z0-9]{5,6}", re.IGNORECASE)
+_PHONE_RE = re.compile(r"1[3-9]\d{9}")
+
+
+def normalize_plate(value: str | None) -> str | None:
+    """Uppercase letters, strip spaces/dots; keep the leading province char."""
+    if not value:
+        return None
+    cleaned = re.sub(r"[\s\.\-·•‧・]", "", value).upper()
+    m = _PLATE_RE.search(cleaned)
+    return m.group(0) if m else (cleaned or None)
+
+
+def normalize_phone(value: str | None) -> str | None:
+    """Keep digits only; surface a clean 11-digit mainland mobile if present."""
+    if not value:
+        return None
+    digits = re.sub(r"\D", "", value)
+    m = _PHONE_RE.search(digits)
+    return m.group(0) if m else (digits or None)
+
+
+@dataclass
+class VisitorInfo:
+    """Mutable slot state for a single call."""
+
+    plate: str | None = None
+    company: str | None = None
+    reason: str | None = None
+    phone: str | None = None
+    entry_time: str | None = None
+    extra: dict = field(default_factory=dict)
+
+    def update(
+        self,
+        plate: str | None = None,
+        company: str | None = None,
+        reason: str | None = None,
+        phone: str | None = None,
+    ) -> None:
+        """Apply a partial update; only non-empty values overwrite."""
+        if plate:
+            self.plate = normalize_plate(plate)
+        if company:
+            self.company = company.strip()
+        if reason:
+            self.reason = reason.strip()
+        if phone:
+            self.phone = normalize_phone(phone)
+
+    def missing_fields(self) -> list[str]:
+        return [f for f in REQUIRED_FIELDS if not getattr(self, f)]
+
+    def is_complete(self) -> bool:
+        return not self.missing_fields()
+
+    def stamp_entry_time(self, tz: str = "Asia/Shanghai") -> str:
+        self.entry_time = datetime.now(ZoneInfo(tz)).strftime("%Y-%m-%d %H:%M")
+        return self.entry_time
+
+    def human_summary(self) -> str:
+        """Short, natural read-back used in the agent's confirmation line."""
+        parts = []
+        if self.plate:
+            parts.append(self.plate)
+        if self.company:
+            parts.append(self.company)
+        if self.reason:
+            parts.append(self.reason)
+        return "，".join(parts)
+
+    def missing_labels_zh(self) -> list[str]:
+        return [FIELD_LABELS_ZH[f] for f in self.missing_fields()]
+
+    def to_dict(self) -> dict:
+        return {
+            "plate": self.plate,
+            "company": self.company,
+            "reason": self.reason,
+            "phone": self.phone,
+            "entry_time": self.entry_time,
+        }
