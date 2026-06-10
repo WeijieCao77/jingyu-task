@@ -102,12 +102,21 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     agent = VisitorAgent(reg)
 
+    # Turn detection improves barge-in naturalness but needs a model file.
+    # If it isn't available, fall back to VAD-only endpointing so the call
+    # still works — "directly usable" beats "perfect".
+    try:
+        turn_detection = build_turn_detection()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("turn detector unavailable, using VAD only: %s", exc)
+        turn_detection = None
+
     session = AgentSession(
         stt=build_stt(cfg),
         llm=build_llm(cfg),
         tts=build_tts(cfg),
         vad=build_vad(),
-        turn_detection=build_turn_detection(),
+        turn_detection=turn_detection,
     )
 
     # Stream the live transcript to the dashboard (final turns only).

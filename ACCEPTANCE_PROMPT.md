@@ -1,70 +1,79 @@
 # 🎬 验收用：一键起服务的 Prompt（复制给本地 Claude Code）
 
 下载本仓库到本地后，**把下面整段**复制给你电脑上的 Claude Code。它会装好依赖、问你要密钥、起好服务，
-并告诉你拨哪个号、打开哪个后台页面。然后你用手机拨号、和 AI 对话，在后台 Dashboard 看实时效果。
+让你**直接对着电脑麦克风和 AI 门卫说话**完成登记，并在后台 Dashboard 实时看到效果。
 
-> 小贴士：如果你还没配 Twilio 电话号，先用文末的「无电话快速验收」也能完整看到对话 + 后台 + 放行。
+> 设计原则：**最基础流程"下载即用"**。语音 demo 用浏览器麦克风跑通（只需 LiveKit + 两个密钥，
+> 不碰 Twilio）；真实电话号码(Twilio SIP)作为"精修"步骤放最后。
 
 ---
 
 ```
-你是我的本地运行助手。这个仓库是一个"园区语音访客登记 Voice Agent"。请帮我把它在本机跑起来，
-让我能用手机拨打电话、和 AI 门卫对话，并在后台 Dashboard 实时看到对话、采集字段、企业微信推送与放行。
-请一步步做，遇到需要密钥/账号的地方停下来问我，不要把任何密钥写进会被提交的文件。
+你是我的本地运行助手。这个仓库是一个"园区语音访客登记 Voice Agent"。
+目标：让我能在浏览器里直接对着麦克风和 AI 门卫说话完成登记，并在后台 Dashboard 实时看到
+对话字幕、采集字段、企业微信推送、保安确认、抬杆。请一步步做，需要密钥时停下问我，
+不要把任何密钥写进会被提交的文件。
 
 【1. 安装】
-- 在仓库根目录创建虚拟环境并安装依赖：
-  python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
-- mkdir -p data ；chmod +x scripts/*.sh
+- python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+- mkdir -p data
+- 预下载语音模型（VAD/turn detector），避免首次启动卡住：
+  PYTHONPATH=src python -m visitor_agent.agent download-files
 
-【2. 配置 .env】
+【2. 配置 .env（问我要这些值）】
 - cp .env.example .env
-- 问我并填入：ANTHROPIC_API_KEY、OPENAI_API_KEY、WECOM_WEBHOOK_URL（企业微信群机器人）。
-  这三个有了就能验证「对话 + 微信推送 + 后台」。先不用 Twilio/LiveKit。
+- ANTHROPIC_API_KEY、OPENAI_API_KEY（LLM + 语音）
+- 保安通知渠道：默认 NOTIFY_CHANNEL=discord，填 DISCORD_WEBHOOK_URL
+  （Discord 频道设置 → 整合 → Webhook → 新建 → 复制 URL；美国可用、最省事，无需企业微信）
+  也可改 NOTIFY_CHANNEL=telegram（填 TELEGRAM_BOT_TOKEN/CHAT_ID，带确认按钮）
+- LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET（去 https://cloud.livekit.io 建项目拿，免费）
+- PUBLIC_BASE_URL：先填 http://localhost:8080（保安确认链接本机点即可；要手机点再换公网隧道）
 
-【3. 起后台 Dashboard + 确认服务】
-- 后台运行：source .venv/bin/activate && PYTHONPATH=src python -m visitor_agent.web.server
-- 打开 http://localhost:8080/dashboard ，让我能看到这个页面（这就是我要看的"后台"）。
-- 用 ngrok 或 cloudflared 把 8080 映射到公网，拿到 https 地址，写回 .env 的 PUBLIC_BASE_URL，
-  （保安点的"确认放行"链接需要公网可达）。然后重启 web 服务使其生效。
+【3. 起两个进程】
+- 终端A（后台 + 浏览器语音页 + 确认服务）：
+  source .venv/bin/activate && PYTHONPATH=src python -m visitor_agent.web.server
+- 终端B（语音 Agent worker，连 LiveKit 等待接入）：
+  source .venv/bin/activate && PYTHONPATH=src python -m visitor_agent.agent dev
+  确认它显示 registered / 已连接 LiveKit。
 
-【4. 先做无电话验收（让我马上看到效果）】
-- 运行：PYTHONPATH=src python -m visitor_agent.sim.run_text --scenario scenarios/songhuo.json --live
-- 让我观察：①Dashboard 实时出现对话和采集字段 ②企业微信群收到访客卡片
-  ③我点卡片里的"确认放行"链接 → 浏览器显示"已放行" → Dashboard 出现"保安确认/抬杆"，访客记录变"已放行"。
-- 再让我自己交互聊一次：PYTHONPATH=src python -m visitor_agent.sim.run_text --live
-  我会假装访客随便说，验证 AI 是否像真人门卫（批量提问、不机械、能补缺）。
+【4. 让我做最基础流程验收（语音，无需电话）】
+- 让我用 Chrome 打开：http://localhost:8080/voice
+- 另开一个标签页打开后台：http://localhost:8080/dashboard
+- 我点"接入门卫"、允许麦克风。AI 应先开口："您好，请问车牌号多少，今天找哪家公司，什么事儿？"
+- 我对着麦克风报：车牌、公司、事由、手机号（可以一句话说多项，测它像不像真人）。
+- 你提醒我观察 Dashboard：对话字幕、采集字段、"推送门卫"应实时出现；Discord 频道应收到访客卡片。
+- 我点卡片里的"✅确认放行"链接 → 浏览器显示"已放行" → Dashboard 出现"保安确认/抬杆"，
+  访客记录状态变"已放行"。
+- 用秒表测：从 AI 开口到企微卡片出现是否 ≤ 25 秒。
 
-【5. 接真实电话（Twilio + LiveKit）】
-- 问我要 LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET，填进 .env。
-- 启动语音 worker：source .venv/bin/activate && PYTHONPATH=src python -m visitor_agent.agent dev
-  确认它显示已注册、等待来电。
+【5. 加分项验证】
+- 回访识别：用同一车牌再走一遍语音登记，开场 AI 应识别为回访、直接确认而非从头重问。
+- 门卫查询：PYTHONPATH=src python -m visitor_agent.guard_query "今天一共多少访问车辆？"
+  以及 "什么时间段访问最多？" —— 看回答数字是否正确。
+
+【6.（精修，可选）接真实电话 Twilio】
 - 按 SETUP_CHECKLIST.md 第 5 步，把我的 Twilio 号码经 SIP 接到 LiveKit
   （参考 https://docs.livekit.io/telephony/accepting-calls/inbound-twilio/ ，
-  用 lk CLI 建 inbound trunk + dispatch rule）。需要我在 Twilio/LiveKit 控制台点什么，明确告诉我。
-- 配好后告诉我拨打哪个号码。
-
-【6. 现场模拟（我来操作）】
-- 我用另一部手机拨打该号码，假装是来访客户。
-- Agent 应先开口："您好，请问车牌号多少，今天找哪家公司，什么事儿？"
-- 我和它对话报车牌/公司/事由/手机号。
-- 你提醒我同时看着 http://localhost:8080/dashboard ：对话字幕、采集字段、推送、确认、抬杆都应实时出现，
-  企业微信群也应收到卡片。用秒表测：从 Agent 开口到微信卡片出现是否 ≤ 25 秒。
-
-【7. 顺手验证加分项】
-- 回访识别：用同一车牌再跑一次 sim --live（或再拨一次电话），开场 AI 应识别为回访、直接确认而非重问。
-- 门卫查询：PYTHONPATH=src python -m visitor_agent.guard_query "今天一共多少访问车辆？"
-  和 "什么时间段访问最多？" —— 看回答数字是否正确。
+   用 lk CLI 建 inbound trunk + dispatch rule）。需要我在控制台点什么，明确告诉我。
+- 配好后告诉我号码，我用手机拨打，重复第 4 步的观察（这次是真电话）。
 
 【输出要求】
-- 每一步做完简短告诉我结果；起好的服务给我可点的本地/公网链接。
-- 任何报错先贴原文，再尝试最小修复并说明改了什么（不要改架构）。
-- 全部跑通后，给我一句话总结：拨打号码、Dashboard 地址、企业微信效果、端到端耗时。
+- 每步做完简短报结果，给我可点的链接（/voice、/dashboard）。
+- 任何报错先贴原文，再做最小修复并说明改了什么（不要改架构）。
+- 全部跑通后一句话总结：语音页地址、Dashboard 地址、企微效果、端到端耗时。
 ```
 
 ---
 
-## 无电话快速验收（30 秒看到全貌）
+## 兜底路径（如果某步卡住）
 
-如果暂时不想配 Twilio，只做第 1–4 步即可：填 3 个密钥 → 起 web → 打开 `/dashboard` → 跑 `sim --live`，
-你就能在后台看到「实时对话 + 采集字段 + 企微卡片 + 确认放行 + 抬杆」整条链路。电话只是把"打字"换成"说话"。
+- **连 LiveKit 都还没配好** → 先做纯文本版，照样能看到「采集→企微→确认→抬杆」全链路：
+  ```
+  PYTHONPATH=src python -m visitor_agent.web.server        # 开 /dashboard
+  PYTHONPATH=src python -m visitor_agent.sim.run_text --scenario scenarios/songhuo.json --live
+  ```
+- **不想用我们自带的 /voice 页** → 也可用 LiveKit 官方 Agents Playground：起 agent worker 后，
+  打开 https://agents-playground.livekit.io ，用你的 LiveKit 项目连接，进房间即可对话（agent 会自动加入）。
+- **手机点确认链接** → 把 8080 用 ngrok/cloudflared 映射公网，把 https 地址填回 `.env` 的 `PUBLIC_BASE_URL` 并重启 web。
+
+> 一句话：**最基础流程 = 浏览器说话 → 后台看到 → 微信收到 → 点确认放行**，只要 LiveKit + 两个密钥就能直接跑。电话是把"浏览器麦克风"换成"Twilio 号码"，属于精修。

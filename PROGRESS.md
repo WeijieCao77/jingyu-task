@@ -51,6 +51,16 @@
 - ✅ 测试从 16 → **19 全绿**（新增 dashboard/event/confirm-event 测试）。
 - 🔔 已设每小时自检心跳，订阅了 PR 活动（仓库暂无 CI workflow，无 CI 可跑；无待处理评论）。
 
+## 第三轮（聚焦"下载即用 + 美国可用"）
+
+- ✅ **浏览器麦克风语音** `/voice` + token 端点：只需 LiveKit + 两个密钥，开网页点按钮就能对着麦克风和 AI 对话，无需 Twilio。
+- ✅ **扫码即用** `/qr`：入口贴二维码，访客手机扫 → 打开 /voice 对话（对应"扫个码就能完成"）。
+- ✅ **保安通知改为可插拔渠道**：`NOTIFY_CHANNEL` = discord(默认) / telegram / wecom。demo 用 **Discord Webhook**（美国可用、一个 URL），Telegram 带确认按钮，企业微信留作生产。`notify/{common,dispatch,discord,telegram,wecom}.py`。
+- ✅ **turn detector 容错**：模型缺失时自动降级为 VAD-only，不让通话崩（"下载即用"优先）。
+- ✅ 文档同步：ACCEPTANCE_PROMPT 改为 Discord + 浏览器语音为主线、电话为精修；README/DESIGN/SETUP 同步；DESIGN 新增 §5 渠道适配器 + §5.5 访客三形态。
+- ✅ 测试 19 → **24 全绿**（新增 voice/token/qr/discord/telegram）。
+- 📌 路线：电话(Twilio SIP)版作为下一步精修；三种接入最终汇入同一 LiveKit room + 同一 Agent。
+
 ## 怎么快速验收（建议顺序）
 
 1. `PYTHONPATH=src pytest -q` → 应 16 passed。

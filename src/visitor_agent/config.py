@@ -33,7 +33,12 @@ class Settings(BaseSettings):
     tts_voice: str = "alloy"
     openai_api_key: str = ""
 
-    # ---- WeCom push ----
+    # ---- Guard notification channel ----
+    # demo 用 discord / telegram（美国可用）；生产用 wecom（企业微信）
+    notify_channel: str = "discord"          # discord | telegram | wecom
+    discord_webhook_url: str = ""
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
     wecom_webhook_url: str = ""
 
     # ---- Confirm web server ----

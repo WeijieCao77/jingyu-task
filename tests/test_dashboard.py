@@ -44,6 +44,47 @@ def test_dashboard_and_visits_api(temp_db, monkeypatch):
     assert any(v["plate"] == "沪A12345" for v in visits)
 
 
+def test_voice_page_and_token(temp_db, monkeypatch):
+    import importlib
+
+    from fastapi.testclient import TestClient
+
+    # configure LiveKit so /token can mint a JWT
+    monkeypatch.setenv("LIVEKIT_URL", "wss://demo.livekit.cloud")
+    monkeypatch.setenv("LIVEKIT_API_KEY", "APIxxxx")
+    monkeypatch.setenv("LIVEKIT_API_SECRET", "secretsecretsecretsecret")
+    from visitor_agent import config
+
+    config.get_settings.cache_clear()
+    from visitor_agent.web import server as srv
+
+    importlib.reload(srv)
+    client = TestClient(srv.app)
+
+    assert "和 AI 门卫对话" in client.get("/voice").text
+    assert "扫码登记访客" in client.get("/qr").text
+
+    tok = client.get("/token", params={"room": "voice-demo", "identity": "v1"}).json()
+    assert tok["url"].startswith("wss://") and tok["token"].count(".") == 2  # JWT
+
+
+def test_token_requires_config(temp_db, monkeypatch):
+    import importlib
+
+    from fastapi.testclient import TestClient
+
+    for k in ("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"):
+        monkeypatch.delenv(k, raising=False)
+    from visitor_agent import config
+
+    config.get_settings.cache_clear()
+    from visitor_agent.web import server as srv
+
+    importlib.reload(srv)
+    resp = TestClient(srv.app).get("/token")
+    assert resp.status_code == 400
+
+
 def test_confirm_logs_events(temp_db, monkeypatch):
     import importlib
 

@@ -111,6 +111,50 @@ def dashboard() -> HTMLResponse:
     return HTMLResponse(_DASHBOARD_HTML)
 
 
+# ----- browser voice client (talk to the agent with a mic, no phone) -----
+
+@app.get("/token")
+def mint_token(room: str = "voice-demo", identity: str = "visitor") -> JSONResponse:
+    """Mint a LiveKit join token so the browser can join the agent's room."""
+    from livekit import api
+
+    cfg = get_settings()
+    if not (cfg.livekit_api_key and cfg.livekit_api_secret and cfg.livekit_url):
+        return JSONResponse({"error": "LiveKit not configured in .env"}, status_code=400)
+    token = (
+        api.AccessToken(cfg.livekit_api_key, cfg.livekit_api_secret)
+        .with_identity(identity)
+        .with_name(identity)
+        .with_grants(api.VideoGrants(room_join=True, room=room))
+        .to_jwt()
+    )
+    return JSONResponse({"url": cfg.livekit_url, "token": token, "room": room})
+
+
+@app.get("/voice", response_class=HTMLResponse)
+def voice() -> HTMLResponse:
+    return HTMLResponse(_VOICE_HTML)
+
+
+@app.get("/qr", response_class=HTMLResponse)
+def qr() -> HTMLResponse:
+    """A printable QR code that points visitors straight at the voice page —
+    "扫码即用": stick it at the entrance, the visitor scans and talks."""
+    base = get_settings().public_base_url.rstrip("/")
+    target = f"{base}/voice"
+    html = f"""<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>扫码登记</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>body{{font-family:-apple-system,Segoe UI,'PingFang SC',sans-serif;background:#f4f1ea;
+text-align:center;padding-top:8vh}}#qr{{display:inline-block;background:#fff;padding:24px;border-radius:20px;
+box-shadow:0 10px 40px rgba(0,0,0,.08)}}h1{{font-size:20px}}p{{color:#777}}a{{color:#c9742e;word-break:break-all}}</style>
+</head><body><h1>🐳 扫码登记访客</h1><p>访客用手机扫码即可和 AI 门卫对话，无需电话</p>
+<div id="qr"></div><p><a href="{target}">{target}</a></p>
+<script>new QRCode(document.getElementById('qr'),{{text:"{target}",width:240,height:240}});</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+
 @app.get("/", response_class=HTMLResponse)
 def root() -> HTMLResponse:
     return HTMLResponse(_DASHBOARD_HTML)
@@ -192,6 +236,52 @@ async function visits(){try{const r=await fetch('/api/visits');const d=await r.j
    '<span class="badge '+(v.status==='confirmed'?'confirmedb':'pending')+'">'+
    (v.status==='confirmed'?'已放行':'待确认')+'</span></td></tr>').join('');}catch(_){}}
 visits();setInterval(visits,3000);
+</script></body></html>"""
+
+
+_VOICE_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>和 AI 门卫对话 · Voice Agent</title>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+<style>
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,'PingFang SC',sans-serif;background:#f4f1ea;
+    color:#2b2b2b;display:flex;min-height:100vh;align-items:center;justify-content:center}
+  .card{background:#fff;border-radius:20px;box-shadow:0 10px 40px rgba(0,0,0,.08);padding:36px 40px;
+    text-align:center;max-width:420px;width:90%}
+  h1{font-size:20px;margin:0 0 6px} p{color:#777;margin:6px 0 20px;line-height:1.6;font-size:14px}
+  button{font-size:16px;padding:14px 28px;border:0;border-radius:999px;background:#c9742e;color:#fff;
+    cursor:pointer;box-shadow:0 6px 16px rgba(201,116,46,.35)} button:disabled{opacity:.5;cursor:default}
+  .status{margin-top:18px;font-size:14px;color:#555;min-height:22px}
+  .mic{width:64px;height:64px;border-radius:50%;background:#39b54a;margin:0 auto 16px;display:none;
+    box-shadow:0 0 0 0 rgba(57,181,74,.6);animation:p 1.5s infinite} @keyframes p{to{box-shadow:0 0 0 16px rgba(57,181,74,0)}}
+  a{color:#c9742e}
+</style></head><body>
+<div class="card">
+  <div class="mic" id="mic"></div>
+  <h1>🐳 和 AI 门卫对话</h1>
+  <p>点下面按钮、允许麦克风权限，就能直接对着电脑说话登记——无需电话。<br>
+     说完打开 <a href="/dashboard" target="_blank">后台 Dashboard</a> 看实时效果。</p>
+  <button id="btn">📞 接入门卫</button>
+  <div class="status" id="status"></div>
+</div>
+<script>
+const btn=document.getElementById('btn'),st=document.getElementById('status'),mic=document.getElementById('mic');
+btn.onclick=async()=>{
+  btn.disabled=true; st.textContent='正在接入…';
+  try{
+    const id='visitor-'+Math.random().toString(36).slice(2,8);
+    const r=await fetch('/token?room=voice-demo&identity='+id);
+    const d=await r.json(); if(d.error){throw new Error(d.error);}
+    const room=new LivekitClient.Room();
+    room.on(LivekitClient.RoomEvent.TrackSubscribed,(track)=>{
+      if(track.kind==='audio'){const el=track.attach();document.body.appendChild(el);}});
+    room.on(LivekitClient.RoomEvent.Disconnected,()=>{st.textContent='已挂断';mic.style.display='none';btn.disabled=false;});
+    await room.connect(d.url,d.token);
+    await room.localParticipant.setMicrophoneEnabled(true);
+    mic.style.display='block';
+    st.innerHTML='✅ 已接入，门卫会先开口——请直接说话。<br>（说完可关闭页面挂断）';
+  }catch(e){st.textContent='接入失败：'+e.message+'（确认 .env 里 LiveKit 配置 + agent worker 已启动）';btn.disabled=false;}
+};
 </script></body></html>"""
 
 

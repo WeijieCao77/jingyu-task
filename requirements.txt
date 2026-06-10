@@ -3,6 +3,7 @@ livekit-agents[silero,turn-detector]~=1.5
 livekit-plugins-openai~=1.5
 livekit-plugins-anthropic~=1.5
 livekit-plugins-silero~=1.5
+livekit-api>=1.0          # mint join tokens for the in-browser voice client
 
 # --- LLM / STT / TTS SDKs (also used by the offline simulator) ---
 anthropic>=0.69

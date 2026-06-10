@@ -27,15 +27,17 @@ chmod +x scripts/*.sh
 ```
 看：是否一句话同时问多项、是否不重复追问、3 轮内完成、复述自然。
 
-## ✅ 2. 企业微信群机器人 webhook
+## ✅ 2. 保安通知渠道（demo 默认 Discord，无需企业微信）
 
-1. 企业微信里建一个群（自己 + 测试用），群设置 → 群机器人 → 添加 → 复制 **Webhook 地址**。
-2. 填入 `.env` 的 `WECOM_WEBHOOK_URL=`。
-3. 验证推送（用 live 仿真，会真发到群里）：
+1. Discord：随便建个频道 → 频道设置 → 整合 → Webhook → 新建 → 复制 URL。
+2. `.env` 里：`NOTIFY_CHANNEL=discord`，`DISCORD_WEBHOOK_URL=<刚复制的 URL>`。
+   （想用 Telegram：`NOTIFY_CHANNEL=telegram` + `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`；
+    生产用企业微信：`NOTIFY_CHANNEL=wecom` + `WECOM_WEBHOOK_URL`。）
+3. 验证推送（live 仿真会真发到频道）：
    ```bash
    ./scripts/run_sim.sh --scenario scenarios/songhuo.json --live
    ```
-   群里应收到访客卡片 + "✅确认放行"链接。
+   频道里应收到访客卡片 + "✅确认放行"链接。
 
 ## ✅ 3. 起确认服务 + 公网隧道
 

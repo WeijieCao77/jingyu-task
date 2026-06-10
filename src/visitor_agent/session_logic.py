@@ -139,14 +139,13 @@ class LiveNotifier:
     async def notify(self, info: dict) -> str:
         import secrets
 
-        from . import db  # noqa: F401  (ensure package import)
         from .db import repo
-        from .notify import wecom
+        from .notify import dispatch
 
         token = secrets.token_urlsafe(16)
-        visit = repo.create_visit(info, confirm_token=token, status="pending")
+        repo.create_visit(info, confirm_token=token, status="pending")
         confirm_url = f"{self.s.public_base_url.rstrip('/')}/confirm?token={token}"
-        await wecom.send_visitor_card(self.s.wecom_webhook_url, info, confirm_url)
+        await dispatch.push(self.s, info, confirm_url)
         return confirm_url
 
 
