@@ -26,6 +26,8 @@ class Notifier(Protocol):
 
 
 LookupReturning = Callable[[str], dict | None]
+# (kind, role, text, payload) -> None   — optional dashboard event sink
+EventSink = Callable[[str, str | None, str | None, dict | None], None]
 
 
 class RegistrationSession:
@@ -34,13 +36,22 @@ class RegistrationSession:
         notifier: Notifier,
         lookup_returning: LookupReturning | None = None,
         tz: str = "Asia/Shanghai",
+        event_sink: EventSink | None = None,
     ) -> None:
         self.info = VisitorInfo()
         self.notifier = notifier
         self.lookup_returning = lookup_returning
         self.tz = tz
+        self.event_sink = event_sink
         self.completed = False
         self.returning_match: dict | None = None
+
+    def _emit(self, kind: str, text: str | None = None, payload: dict | None = None) -> None:
+        if self.event_sink:
+            try:
+                self.event_sink(kind, None, text, payload)
+            except Exception:  # noqa: BLE001 — dashboard must never break the call
+                pass
 
     # ---- tool 1: record (incremental, called as info arrives) ----
     def record(
@@ -76,7 +87,9 @@ class RegistrationSession:
         recorded = self.info.human_summary() or "（暂无）"
         missing = self.info.missing_labels_zh()
         missing_str = "、".join(missing) if missing else "无，信息已齐"
-        return f"已记录：{recorded}。还缺：{missing_str}。{hint}".strip()
+        result = f"已记录：{recorded}。还缺：{missing_str}。{hint}".strip()
+        self._emit("slot", text=result, payload=self.info.to_dict())
+        return result
 
     # ---- tool 2: complete (validate, persist, push to guard) ----
     async def complete(self) -> str:
@@ -87,8 +100,10 @@ class RegistrationSession:
         self.info.stamp_entry_time(self.tz)
         payload = self.info.to_dict()
         payload["returning"] = bool(self.returning_match)
-        await self.notifier.notify(payload)
+        confirm_url = await self.notifier.notify(payload)
         self.completed = True
+        self._emit("completed", text=self.info.human_summary(), payload=payload)
+        self._emit("pushed", text="已推送门卫企业微信", payload={"confirm_url": confirm_url})
         return (
             f"登记完成，已通知门卫。请向访客复述并请其稍等放行："
             f"{self.info.human_summary()}。"

@@ -59,14 +59,30 @@ async def run(scenario: list[str] | None, live: bool) -> None:
 
     notifier = LiveNotifier(cfg) if live else MockNotifier()
     lookup = None
+    event_sink = None
+    call_id = "sim"
     if live:
+        import json as _json
+        import time as _time
+
         from ..db import repo
         from ..session_logic import make_db_lookup
 
         repo.init_db(cfg.database_url)
         lookup = make_db_lookup()
+        call_id = f"sim-{int(_time.time())}"
 
-    reg = RegistrationSession(notifier=notifier, lookup_returning=lookup, tz=cfg.timezone)
+        def event_sink(kind, role, text, payload):  # noqa: ANN001
+            repo.log_event(
+                call_id, kind, role=role, text=text,
+                payload=_json.dumps(payload, ensure_ascii=False) if payload else None,
+            )
+
+        event_sink("call_started", None, f"文本仿真来电（{call_id}）", None)
+
+    reg = RegistrationSession(
+        notifier=notifier, lookup_returning=lookup, tz=cfg.timezone, event_sink=event_sink
+    )
     messages: list[dict] = []
 
     print("=== 门卫语音 Agent · 文本仿真 ===")
@@ -90,6 +106,8 @@ async def run(scenario: list[str] | None, live: bool) -> None:
                 break
 
         messages.append({"role": "user", "content": user})
+        if event_sink:
+            event_sink("user", "user", user, None)
 
         # Inner tool-use loop for this user turn.
         for _ in range(6):
@@ -103,6 +121,8 @@ async def run(scenario: list[str] | None, live: bool) -> None:
             text = "".join(b.text for b in resp.content if b.type == "text").strip()
             if text:
                 print(f"AGENT> {text}")
+                if event_sink:
+                    event_sink("agent", "assistant", text, None)
             if resp.stop_reason != "tool_use":
                 break
             messages.append({"role": "assistant", "content": resp.content})

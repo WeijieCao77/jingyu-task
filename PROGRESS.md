@@ -42,6 +42,15 @@
 - [ ] Serverless 部署样例（Cloudflare Workers 跑 /confirm + Neon），音频层仍需常驻进程。
 - [ ] 海康 ISAPI 真实对接（需进园区内网）。
 
+## 第二轮（你授权 GitHub + 明确验收体验后）
+
+- ✅ 建 `main` 基础分支（git plumbing 空初始提交 + rebase feature），开 **draft PR #1**，历史干净可合并。
+- ✅ **实时后台 Dashboard**（`/dashboard`）：SSE 流式显示通话时间线（对话字幕/采集字段/推送/确认/抬杆）+ 访客记录表。
+  - 新增 `call_events` 表 + `repo.log_event/events_after`；agent 注册 `conversation_item_added` 写字幕（防御式，绝不影响通话）；`RegistrationSession` 加 `event_sink` 发槽位/完成事件；确认端点发 confirmed/gate 事件；`sim --live` 也喂 Dashboard。
+- ✅ **`ACCEPTANCE_PROMPT.md`**：一段可直接喂本地 Claude Code 的开机即用 prompt——装依赖→问密钥→起 web+dashboard→`sim --live` 无电话验收→接 Twilio/LiveKit→拨号现场模拟，并含"无电话 30 秒快速验收"。
+- ✅ 测试从 16 → **19 全绿**（新增 dashboard/event/confirm-event 测试）。
+- 🔔 已设每小时自检心跳，订阅了 PR 活动（仓库暂无 CI workflow，无 CI 可跑；无待处理评论）。
+
 ## 怎么快速验收（建议顺序）
 
 1. `PYTHONPATH=src pytest -q` → 应 16 passed。

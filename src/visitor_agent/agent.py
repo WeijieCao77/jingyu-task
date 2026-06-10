@@ -64,16 +64,41 @@ class VisitorAgent(Agent):
         return await self._reg.complete()
 
 
+def _make_event_sink(call_id: str):
+    """Persist dashboard events; never let a logging error break the call."""
+
+    def sink(kind: str, role: str | None, text: str | None, payload: dict | None) -> None:
+        import json
+
+        try:
+            repo.log_event(
+                call_id=call_id,
+                kind=kind,
+                role=role,
+                text=text,
+                payload=json.dumps(payload, ensure_ascii=False) if payload else None,
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("failed to log event")
+
+    return sink
+
+
 async def entrypoint(ctx: JobContext) -> None:
     cfg = get_settings()
     repo.init_db(cfg.database_url)
 
     await ctx.connect()
 
+    call_id = ctx.room.name or "call"
+    sink = _make_event_sink(call_id)
+    sink("call_started", None, f"来电接入（{call_id}）", None)
+
     reg = RegistrationSession(
         notifier=LiveNotifier(cfg),
         lookup_returning=make_db_lookup(),
         tz=cfg.timezone,
+        event_sink=sink,
     )
     agent = VisitorAgent(reg)
 
@@ -84,6 +109,18 @@ async def entrypoint(ctx: JobContext) -> None:
         vad=build_vad(),
         turn_detection=build_turn_detection(),
     )
+
+    # Stream the live transcript to the dashboard (final turns only).
+    @session.on("conversation_item_added")
+    def _on_item(ev) -> None:  # noqa: ANN001
+        try:
+            item = ev.item
+            role = getattr(item, "role", None)
+            text = getattr(item, "text_content", None)
+            if role in ("user", "assistant") and text:
+                sink("user" if role == "user" else "agent", role, text, None)
+        except Exception:  # noqa: BLE001
+            logger.exception("transcript log error")
 
     await session.start(agent=agent, room=ctx.room)
 

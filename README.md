@@ -2,7 +2,8 @@
 
 未登记车辆拨打园区入口电话 → AI 门卫用**自然中文对话**采集（车牌 / 来访单位 / 手机号 / 事由）→ 结构化信息推送到**保安企业微信** → 保安点链接确认 → （海康抬杆，demo 为 stub）。从 Agent 开口到微信发出 **≤ 25 秒**。
 
-> 选型理由、延迟预算、中国落地路径见 **[DESIGN.md](DESIGN.md)**。动手部署见 **[SETUP_CHECKLIST.md](SETUP_CHECKLIST.md)**。
+> **一键验收**：下载后把 **[ACCEPTANCE_PROMPT.md](ACCEPTANCE_PROMPT.md)** 整段喂给本地 Claude Code，它会起好服务、告诉你拨哪个号、打开 `http://localhost:8080/dashboard` 实时后台。
+> 选型理由、延迟预算、中国落地路径见 **[DESIGN.md](DESIGN.md)**；逐步部署见 **[SETUP_CHECKLIST.md](SETUP_CHECKLIST.md)**。
 
 ## 架构
 
@@ -18,7 +19,8 @@ flowchart LR
     Worker --- Pipeline
 
     Worker -->|完成登记| WeCom["企业微信群机器人<br/>markdown 卡片 + 确认链接"]
-    Worker -->|写入| DB[("SQLite / Neon<br/>visits")]
+    Worker -->|写入 visits + 实时事件| DB[("SQLite / Neon<br/>visits · call_events")]
+    DB -->|SSE| Dash["📊 实时后台 Dashboard<br/>/dashboard"]
     WeCom -->|保安点链接| Web["FastAPI /confirm<br/>(visitor_agent.web)"]
     Web -->|校验 token| DB
     Web -->|抬杆| Gate["海康 ISAPI<br/>(demo: stub)"]
@@ -39,8 +41,9 @@ pip install -r requirements.txt
 cp .env.example .env        # 填入 OpenAI / Anthropic 密钥、企微 webhook、Twilio/LiveKit
 mkdir -p data
 
-# 3a. 起 Web 确认服务（保安点链接的落点）
-./scripts/run_web.sh                     # :8080 ；公网用 ngrok/cloudflared 映射并填回 PUBLIC_BASE_URL
+# 3a. 起 Web 服务：确认端点 + 实时后台 Dashboard
+./scripts/run_web.sh                     # :8080  → 后台看板 http://localhost:8080/dashboard
+                                         # 公网用 ngrok/cloudflared 映射并填回 PUBLIC_BASE_URL
 
 # 3b. 起语音 Agent worker
 ./scripts/run_agent.sh dev               # 连 LiveKit，等待来电

@@ -16,7 +16,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import get_settings
-from .models import Base, Visit
+from .models import Base, CallEvent, Visit
 
 _engine: Engine | None = None
 _Session: sessionmaker[Session] | None = None
@@ -125,6 +125,42 @@ def visits_for(plate: str | None = None, phone: str | None = None,
             stmt = stmt.where(Visit.company.like(f"%{company}%"))
         stmt = stmt.order_by(Visit.created_at.desc()).limit(limit)
         return list(s.scalars(stmt))
+
+
+def recent_visits(limit: int = 30) -> list[Visit]:
+    with _session() as s:
+        return list(
+            s.scalars(select(Visit).order_by(Visit.created_at.desc()).limit(limit))
+        )
+
+
+# ----- call events (live dashboard) -----
+
+def log_event(call_id: str, kind: str, role: str | None = None,
+              text: str | None = None, payload: str | None = None) -> CallEvent:
+    with _session() as s:
+        ev = CallEvent(call_id=call_id, kind=kind, role=role, text=text, payload=payload)
+        s.add(ev)
+        s.commit()
+        s.refresh(ev)
+        return ev
+
+
+def events_after(after_id: int, limit: int = 200) -> list[CallEvent]:
+    with _session() as s:
+        return list(
+            s.scalars(
+                select(CallEvent)
+                .where(CallEvent.id > after_id)
+                .order_by(CallEvent.id)
+                .limit(limit)
+            )
+        )
+
+
+def latest_event_id() -> int:
+    with _session() as s:
+        return int(s.scalar(select(func.max(CallEvent.id))) or 0)
 
 
 def visits_by_hour(since: datetime | None = None) -> dict[int, int]:
