@@ -1,79 +1,81 @@
-# 🎬 验收用：一键起服务的 Prompt（复制给本地 Claude Code）
+# 🎬 验收：一段 Prompt 让本地 Claude Code 全自动起服务
 
-下载本仓库到本地后，**把下面整段**复制给你电脑上的 Claude Code。它会装好依赖、问你要密钥、起好服务，
-让你**直接对着电脑麦克风和 AI 门卫说话**完成登记，并在后台 Dashboard 实时看到效果。
+**你只需要做一件事**：准备两个 API key（`OPENAI_API_KEY`、`ANTHROPIC_API_KEY`）——
+怎么拿见 **[USER_TODO.md](USER_TODO.md)**（手把手图文教程）。
 
-> 设计原则：**最基础流程"下载即用"**。语音 demo 用浏览器麦克风跑通（只需 LiveKit + 两个密钥，
-> 不碰 Twilio）；真实电话号码(Twilio SIP)作为"精修"步骤放最后。
+其余一切（装依赖、本地起 LiveKit、下载模型、配置、起服务、隧道）都由本地 Claude Code 完成。
+**不需要你注册 LiveKit / Discord / 任何其他账号。** 保安通知默认走"后台 Dashboard 点放行"，零账号。
+
+把下面整段复制给你电脑上的 Claude Code 即可：
 
 ---
 
 ```
-你是我的本地运行助手。这个仓库是一个"园区语音访客登记 Voice Agent"。
-目标：让我能在浏览器里直接对着麦克风和 AI 门卫说话完成登记，并在后台 Dashboard 实时看到
-对话字幕、采集字段、企业微信推送、保安确认、抬杆。请一步步做，需要密钥时停下问我，
-不要把任何密钥写进会被提交的文件。
+你是我的本地运行助手。这个仓库是"园区语音访客登记 Voice Agent"。
+目标：全自动把它跑起来，让我能在浏览器里对着麦克风和 AI 门卫对话完成登记，
+并在后台 Dashboard 实时看到对话、采集字段，然后我在 Dashboard 上点"放行"。
+除了我提供的两个 API key，其它你全部自己完成；任何报错你先自己排查修复（不改架构），
+需要我做的事必须给我详细到"点哪里/输入什么"的步骤。
 
-【1. 安装】
+【0. 前置：只问我要这两个密钥】
+- 问我要 OPENAI_API_KEY 和 ANTHROPIC_API_KEY（我会粘贴给你；若我不会拿，按 USER_TODO.md 指引我）。
+- 其它一律不要问我账号；LiveKit 用本地 Docker 起，通知用本地 Dashboard。
+
+【1. 安装依赖】
 - python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 - mkdir -p data
-- 预下载语音模型（VAD/turn detector），避免首次启动卡住：
-  PYTHONPATH=src python -m visitor_agent.agent download-files
+- 预下载语音模型：PYTHONPATH=src python -m visitor_agent.agent download-files
 
-【2. 配置 .env（问我要这些值）】
-- cp .env.example .env
-- ANTHROPIC_API_KEY、OPENAI_API_KEY（LLM + 语音）
-- 保安通知渠道：默认 NOTIFY_CHANNEL=discord，填 DISCORD_WEBHOOK_URL
-  （Discord 频道设置 → 整合 → Webhook → 新建 → 复制 URL；美国可用、最省事，无需企业微信）
-  也可改 NOTIFY_CHANNEL=telegram（填 TELEGRAM_BOT_TOKEN/CHAT_ID，带确认按钮）
-- LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET（去 https://cloud.livekit.io 建项目拿，免费）
-- PUBLIC_BASE_URL：先填 http://localhost:8080（保安确认链接本机点即可；要手机点再换公网隧道）
+【2. 本地起 LiveKit（不需要我的账号）】
+- 检查 Docker 是否安装；没有就帮我装（或告诉我一条安装命令）。
+- 起本地 dev 版 LiveKit：
+  docker run -d --name livekit-dev -p 7880:7880 -p 7881:7881 -p 7882:7882/udp livekit/livekit-server --dev
+  （--dev 自带固定密钥：api key=devkey，secret=secret，地址 ws://localhost:7880）
 
-【3. 起两个进程】
-- 终端A（后台 + 浏览器语音页 + 确认服务）：
-  source .venv/bin/activate && PYTHONPATH=src python -m visitor_agent.web.server
-- 终端B（语音 Agent worker，连 LiveKit 等待接入）：
-  source .venv/bin/activate && PYTHONPATH=src python -m visitor_agent.agent dev
-  确认它显示 registered / 已连接 LiveKit。
+【3. 写 .env】
+- cp .env.example .env，然后写入：
+  ANTHROPIC_API_KEY=<我给的>
+  OPENAI_API_KEY=<我给的>
+  LIVEKIT_URL=ws://localhost:7880
+  LIVEKIT_API_KEY=devkey
+  LIVEKIT_API_SECRET=secret
+  NOTIFY_CHANNEL=none           # 保安在 Dashboard 上点放行，无需任何账号
+  PUBLIC_BASE_URL=http://localhost:8080
 
-【4. 让我做最基础流程验收（语音，无需电话）】
-- 让我用 Chrome 打开：http://localhost:8080/voice
-- 另开一个标签页打开后台：http://localhost:8080/dashboard
-- 我点"接入门卫"、允许麦克风。AI 应先开口："您好，请问车牌号多少，今天找哪家公司，什么事儿？"
-- 我对着麦克风报：车牌、公司、事由、手机号（可以一句话说多项，测它像不像真人）。
-- 你提醒我观察 Dashboard：对话字幕、采集字段、"推送门卫"应实时出现；Discord 频道应收到访客卡片。
-- 我点卡片里的"✅确认放行"链接 → 浏览器显示"已放行" → Dashboard 出现"保安确认/抬杆"，
-  访客记录状态变"已放行"。
-- 用秒表测：从 AI 开口到企微卡片出现是否 ≤ 25 秒。
+【4. 起两个进程】
+- 终端A：source .venv/bin/activate && PYTHONPATH=src python -m visitor_agent.web.server
+- 终端B：source .venv/bin/activate && PYTHONPATH=src python -m visitor_agent.agent dev
+  确认 worker 显示已连接 LiveKit（registered）。
 
-【5. 加分项验证】
-- 回访识别：用同一车牌再走一遍语音登记，开场 AI 应识别为回访、直接确认而非从头重问。
+【5. 让我体验测试（你给我可点链接 + 操作说明）】
+- 给我两个链接：
+  · 访客端  http://localhost:8080/voice
+  · 后台端  http://localhost:8080/dashboard
+- 告诉我操作：在 /voice 点"接入门卫"、允许麦克风，AI 会先开口问"车牌、找哪家、什么事"，
+  我对着麦克风回答（可以一句话说多项）。同时我盯着 /dashboard 看实时字幕和采集字段。
+- 信息齐了，Dashboard 右侧"访客记录"会出现这条、状态"待确认"，我点"✅放行"，
+  状态变"已放行"、出现"抬杆"事件。请确认这条链路在我这边真的发生了。
+- 帮我留意：从 AI 开口到访客记录出现是否 ≤ 25 秒。
+
+【6. 顺便验证加分项】
+- 回访识别：用同一车牌再登记一次，开场 AI 应识别为回访、直接确认不重问。
 - 门卫查询：PYTHONPATH=src python -m visitor_agent.guard_query "今天一共多少访问车辆？"
-  以及 "什么时间段访问最多？" —— 看回答数字是否正确。
 
-【6.（精修，可选）接真实电话 Twilio】
-- 按 SETUP_CHECKLIST.md 第 5 步，把我的 Twilio 号码经 SIP 接到 LiveKit
-  （参考 https://docs.livekit.io/telephony/accepting-calls/inbound-twilio/ ，
-   用 lk CLI 建 inbound trunk + dispatch rule）。需要我在控制台点什么，明确告诉我。
-- 配好后告诉我号码，我用手机拨打，重复第 4 步的观察（这次是真电话）。
+【7. 跑测试自检】
+- PYTHONPATH=src python -m pytest -q  应全部通过。
 
 【输出要求】
-- 每步做完简短报结果，给我可点的链接（/voice、/dashboard）。
-- 任何报错先贴原文，再做最小修复并说明改了什么（不要改架构）。
-- 全部跑通后一句话总结：语音页地址、Dashboard 地址、企微效果、端到端耗时。
+- 每步做完简短报结果；最后给我：访客链接、后台链接、我要点的按钮、端到端耗时。
+- 我只负责体验和提意见，所以请把"该我点的地方"写得非常清楚。
 ```
 
 ---
 
-## 兜底路径（如果某步卡住）
+## 之后的"精修"路线（不影响现在验收）
 
-- **连 LiveKit 都还没配好** → 先做纯文本版，照样能看到「采集→企微→确认→抬杆」全链路：
-  ```
-  PYTHONPATH=src python -m visitor_agent.web.server        # 开 /dashboard
-  PYTHONPATH=src python -m visitor_agent.sim.run_text --scenario scenarios/songhuo.json --live
-  ```
-- **不想用我们自带的 /voice 页** → 也可用 LiveKit 官方 Agents Playground：起 agent worker 后，
-  打开 https://agents-playground.livekit.io ，用你的 LiveKit 项目连接，进房间即可对话（agent 会自动加入）。
-- **手机点确认链接** → 把 8080 用 ngrok/cloudflared 映射公网，把 https 地址填回 `.env` 的 `PUBLIC_BASE_URL` 并重启 web。
+- **扫码即用**：起一个无账号公网隧道（cloudflared quick tunnel：`cloudflared tunnel --url http://localhost:8080`），
+  把得到的 https 地址填回 `.env` 的 `PUBLIC_BASE_URL` 重启 web，然后打开 `/qr`，手机扫码即可在手机上和 AI 对话。
+- **真实电话**：接 Twilio 号码 → LiveKit SIP（需要你的 Twilio 账号，按 SETUP_CHECKLIST.md 第 5 步）。
+- **外部通知**：想让通知发到手机群，把 `NOTIFY_CHANNEL` 改 `discord` 并填 webhook（见 USER_TODO.md 可选部分）。
 
-> 一句话：**最基础流程 = 浏览器说话 → 后台看到 → 微信收到 → 点确认放行**，只要 LiveKit + 两个密钥就能直接跑。电话是把"浏览器麦克风"换成"Twilio 号码"，属于精修。
+> 一句话：现在这版**只要两个 API key 就能在你电脑上点开网页和 AI 说话、后台点放行**，其余全自动。

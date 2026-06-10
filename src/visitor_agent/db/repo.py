@@ -86,6 +86,20 @@ def mark_confirmed(token: str) -> Visit | None:
         return visit
 
 
+def mark_confirmed_by_id(visit_id: int) -> Visit | None:
+    """Confirm a visit from the local guard console (Dashboard button)."""
+    with _session() as s:
+        visit = s.get(Visit, visit_id)
+        if visit is None:
+            return None
+        if visit.status != "confirmed":
+            visit.status = "confirmed"
+            visit.confirmed_at = datetime.now(timezone.utc)
+            s.commit()
+            s.refresh(visit)
+        return visit
+
+
 def find_recent_visit_by_plate(plate: str) -> Visit | None:
     """Most recent prior visit for a plate — powers returning-visitor greetings."""
     if not plate:

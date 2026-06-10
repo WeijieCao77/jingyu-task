@@ -34,8 +34,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
 
     # ---- Guard notification channel ----
-    # demo 用 discord / telegram（美国可用）；生产用 wecom（企业微信）
-    notify_channel: str = "discord"          # discord | telegram | wecom
+    # "none" = 保安直接在 Dashboard 上点确认（零账号，默认）。
+    # 也可 discord / telegram（美国可用，需各自账号）；wecom 为生产渠道。
+    notify_channel: str = "none"             # none | discord | telegram | wecom
     discord_webhook_url: str = ""
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""

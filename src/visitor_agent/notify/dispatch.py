@@ -11,7 +11,11 @@ from . import discord, telegram, wecom
 
 
 async def push(settings, visit: dict, confirm_url: str) -> bool:
-    channel = (settings.notify_channel or "discord").lower()
+    channel = (settings.notify_channel or "none").lower()
+    if channel in ("none", "dashboard", "console"):
+        # No external push needed — the guard acts on the live Dashboard, which
+        # already reflects this visit (zero accounts required).
+        return True
     if channel == "discord":
         return await discord.send(settings.discord_webhook_url, visit, confirm_url)
     if channel == "telegram":

@@ -61,6 +61,18 @@
 - ✅ 测试 19 → **24 全绿**（新增 voice/token/qr/discord/telegram）。
 - 📌 路线：电话(Twilio SIP)版作为下一步精修；三种接入最终汇入同一 LiveKit room + 同一 Agent。
 
+## 第四轮（把"需要用户做的"压到最小 + 全自动 + 教程）
+
+- ✅ **保安通知默认 `none` = 后台 Dashboard 点"放行"**：访客记录每条待确认显示绿色"✅放行"按钮 →
+  `POST /api/confirm/{id}` → 抬杆 + 记事件。**零账号**，不再需要 Discord/企微。Discord/Telegram 仍可选。
+- ✅ **LiveKit 改本地 Docker 自托管**（`livekit-server --dev`，devkey/secret）→ **不需要用户的 LiveKit 账号**。
+- ✅ **`ACCEPTANCE_PROMPT.md` 全自动重写**：本地 Claude Code 负责装依赖/起 LiveKit/下载模型/配置/起服务/隧道；
+  只问用户要 2 个 API key；并要求把"该用户点的地方"写清楚。
+- ✅ **`USER_TODO.md`**：手把手图文教程——怎么拿 Anthropic / OpenAI key（注册→充值→建 key→复制）、
+  怎么交给本地 CC、花费预期、可选 Discord/Telegram。
+- ✅ 测试 24 → **26 全绿**（新增本地确认按钮 + notify=none）。
+- 🎯 现在用户要做的全部 = 拿两个 API key 粘贴 + 体验测试。其余全自动、零额外账号。
+
 ## 怎么快速验收（建议顺序）
 
 1. `PYTHONPATH=src pytest -q` → 应 16 passed。

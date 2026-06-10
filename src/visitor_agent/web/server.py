@@ -85,6 +85,19 @@ def api_visits() -> JSONResponse:
     return JSONResponse([v.to_dict() for v in repo.recent_visits(limit=30)])
 
 
+@app.post("/api/confirm/{visit_id}")
+def api_confirm(visit_id: int) -> JSONResponse:
+    """Local guard console: confirm + open gate from the Dashboard button."""
+    visit = repo.mark_confirmed_by_id(visit_id)
+    if visit is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    gate.open_gate(visit_id=visit.id, plate=visit.plate)
+    call_id = f"visit-{visit.id}"
+    repo.log_event(call_id, "confirmed", text=f"保安已确认放行 {visit.plate or ''}")
+    repo.log_event(call_id, "gate", text="已发送抬杆指令 (gate open)")
+    return JSONResponse(visit.to_dict())
+
+
 @app.get("/events/stream")
 async def events_stream() -> StreamingResponse:
     """Server-Sent Events: stream new call-timeline events as they land."""
@@ -203,6 +216,7 @@ _DASHBOARD_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
   .chip b{color:var(--accent)} table{width:100%;border-collapse:collapse;font-size:13px}
   th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #eee} .badge{font-size:11px;padding:2px 8px;border-radius:999px}
   .pending{background:#fff3e0;color:#b26a00} .confirmedb{background:#e8f7ec;color:#2e7d32}
+  .go{border:0;border-radius:999px;background:#39b54a;color:#fff;padding:5px 12px;cursor:pointer;font-size:12px}
 </style></head><body>
 <header><span class="dot"></span><h1>🐳 门卫控制台 · 实时</h1>
 <span style="color:var(--muted);font-size:13px">拨打电话后，这里实时显示对话、采集字段、推送与放行</span></header>
@@ -211,7 +225,7 @@ _DASHBOARD_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
     <div class="slots" id="slots"></div>
     <div id="feed"></div>
   </div>
-  <div class="panel"><h2>🗂 访客记录</h2>
+  <div class="panel"><h2>🗂 访客记录 · 保安点"放行"即确认</h2>
     <table><thead><tr><th>车牌</th><th>单位</th><th>事由</th><th>时间</th><th>状态</th></tr></thead>
     <tbody id="visits"></tbody></table>
   </div>
@@ -230,11 +244,14 @@ function row(e){const d=document.createElement('div');d.className='ev '+e.kind;
       return '<span class="chip">'+L+'：<b>'+(p[k]||'…')+'</b></span>';}).join('');}catch(_){}}
 }
 const es=new EventSource('/events/stream');es.onmessage=m=>{try{row(JSON.parse(m.data))}catch(_){}};
+async function confirmVisit(id){try{await fetch('/api/confirm/'+id,{method:'POST'});visits();}catch(_){}}
 async function visits(){try{const r=await fetch('/api/visits');const d=await r.json();
-  document.getElementById('visits').innerHTML=d.map(v=>'<tr><td>'+(v.plate||'—')+'</td><td>'+
-   (v.company||'—')+'</td><td>'+(v.reason||'—')+'</td><td>'+(v.entry_time||'—')+'</td><td>'+
-   '<span class="badge '+(v.status==='confirmed'?'confirmedb':'pending')+'">'+
-   (v.status==='confirmed'?'已放行':'待确认')+'</span></td></tr>').join('');}catch(_){}}
+  document.getElementById('visits').innerHTML=d.map(v=>{
+   const cell=v.status==='confirmed'
+     ?'<span class="badge confirmedb">已放行</span>'
+     :'<button class="go" onclick="confirmVisit('+v.id+')">✅ 放行</button>';
+   return '<tr><td>'+(v.plate||'—')+'</td><td>'+(v.company||'—')+'</td><td>'+(v.reason||'—')+
+     '</td><td>'+(v.entry_time||'—')+'</td><td>'+cell+'</td></tr>';}).join('');}catch(_){}}
 visits();setInterval(visits,3000);
 </script></body></html>"""
 
