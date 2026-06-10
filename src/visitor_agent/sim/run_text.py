@@ -41,6 +41,14 @@ TOOLS = [
         "description": "四项信息齐全后调用：完成登记并推送门卫。",
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "request_human",
+        "description": "转人工：访客要求真人、或听不懂/情况异常时调用，通知保安介入。",
+        "input_schema": {
+            "type": "object",
+            "properties": {"reason": {"type": "string", "description": "转人工原因"}},
+        },
+    },
 ]
 
 
@@ -49,6 +57,8 @@ async def _dispatch(reg: RegistrationSession, name: str, args: dict) -> str:
         return reg.record(**args)
     if name == "complete_registration":
         return await reg.complete()
+    if name == "request_human":
+        return reg.request_human(**args)
     return f"unknown tool {name}"
 
 

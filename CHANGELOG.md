@@ -66,6 +66,15 @@
   - README 顶部加文档索引入口。
 - **计划变更**：确立文档体系——快速了解三篇（README/PRODUCT_FLOW/FRAMEWORK_RESEARCH），其余按四类归档，DOCS.md 为统一入口。
 
+### v0.11 — 转人工 / 保安介入（回答"扫码场景能否转人工"）
+- **改动**：因三种接入共用同一 LiveKit 房间，实现"真人介入"——
+  - `request_human` 工具（LLM 在访客要求/听不懂/异常时调用）+ prompt 转人工规则；发 `escalation` 事件。
+  - Dashboard 实时流高亮 ⚠️ 转人工 + 一键 **📞 介入通话** 按钮；新增保安介入页 `/guard_call`（接入访客房间、开麦）。
+  - 保安加入（identity=guard）时 **AI 自动让位**（say 一句后 `session.aclose()` 退出房间），保安与访客直接对讲；电话场景同理（LiveKit 支持 SIP 转接）。
+  - 修一个真 bug：escalation payload 的 `reason` 被 `info.to_dict()` 的来访事由覆盖（合并顺序）。测试 37→39。
+- **计划变更**：产品决策点 #4（异常兜底/转人工）从"待定"变为"v1 已做"；待用户定触发策略松紧与黑白名单。
+- **未验证**：保安加入→AI 退出的实时表现需本地真跑确认（已记入 SMOKE_CHECK 思路）。
+
 ---
 
 ## 待办 / 下一步候选（计划池）

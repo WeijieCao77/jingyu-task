@@ -44,6 +44,7 @@ class RegistrationSession:
         self.tz = tz
         self.event_sink = event_sink
         self.completed = False
+        self.escalated = False
         self.returning_match: dict | None = None
 
     @staticmethod
@@ -108,6 +109,18 @@ class RegistrationSession:
         result = f"已记录：{recorded}。还缺：{missing_str}。{hint}".strip()
         self._emit("slot", text=result, payload=self.info.to_dict())
         return result
+
+    # ---- transfer to a human guard (escalation) ----
+    def request_human(self, reason: str | None = None) -> str:
+        """Flag that this call needs a real person; surfaces on the dashboard so
+        the guard can join the same room (or call back the collected mobile)."""
+        self.escalated = True
+        self._emit(
+            "escalation",
+            text=f"请求转人工{('：' + reason) if reason else ''}",
+            payload={**self.info.to_dict(), "reason": reason},
+        )
+        return "好的，我马上请门卫师傅来跟您说，请稍等一下别挂机。"
 
     # ---- tool 2: complete (validate, persist, push to guard) ----
     async def complete(self) -> str:

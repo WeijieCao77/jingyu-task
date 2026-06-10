@@ -159,6 +159,12 @@ def voice() -> HTMLResponse:
     return HTMLResponse(_VOICE_HTML)
 
 
+@app.get("/guard_call", response_class=HTMLResponse)
+def guard_call() -> HTMLResponse:
+    """Guard joins a visitor's live room to take over the conversation (转人工)."""
+    return HTMLResponse(_GUARD_CALL_HTML)
+
+
 @app.get("/qr", response_class=HTMLResponse)
 def qr() -> HTMLResponse:
     """A printable QR code that points visitors straight at the voice page —
@@ -221,6 +227,8 @@ _DASHBOARD_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
   .slot{background:#f3f7ef;color:#3a6} .completed{background:#e8f7ec;font-weight:600}
   .pushed{background:#eaf6ff} .confirmed{background:#e9f9ea;font-weight:600} .gate{background:#fff0f0;color:#b23}
   .call_started{background:#f0eefc;font-weight:600}
+  .escalation{background:#fff3e0;color:#b26a00;font-weight:700;border:1px solid #f0c98a}
+  .human_joined{background:#eef7ff;font-weight:600}
   .slots{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
   .chip{background:#f6f3ec;border-radius:999px;padding:6px 12px;font-size:13px}
   .chip b{color:var(--accent)} table{width:100%;border-collapse:collapse;font-size:13px}
@@ -242,11 +250,15 @@ _DASHBOARD_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
 </div>
 <script>
 const F={user:'你 · 访客',agent:'AI 门卫',slot:'抽取',completed:'登记完成',
-  pushed:'推送门卫',confirmed:'保安确认',gate:'抬杆',call_started:'来电'};
+  pushed:'推送门卫',confirmed:'保安确认',gate:'抬杆',call_started:'来电',
+  escalation:'⚠️ 转人工',human_joined:'保安接入'};
 const feed=document.getElementById('feed'),slots=document.getElementById('slots');
 function row(e){const d=document.createElement('div');d.className='ev '+e.kind;
   const t=(e.created_at||'').slice(11,19);
-  d.innerHTML='<span class="t">'+t+'</span><b>'+(F[e.kind]||e.kind)+'</b> '+(e.text||'');
+  let extra='';
+  if(e.kind==='escalation'&&e.call_id){extra=' <a href="/guard_call?room='+
+    encodeURIComponent(e.call_id)+'" target="_blank" style="color:#c9742e;font-weight:700">📞 介入通话</a>';}
+  d.innerHTML='<span class="t">'+t+'</span><b>'+(F[e.kind]||e.kind)+'</b> '+(e.text||'')+extra;
   feed.appendChild(d);feed.scrollTop=feed.scrollHeight;
   if(e.kind==='slot'&&e.payload){try{const p=JSON.parse(e.payload);
     slots.innerHTML=['plate','company','reason','phone'].map(k=>{
@@ -346,6 +358,46 @@ async function load(){try{const r=await fetch('/api/profiles');const d=await r.j
    '<td>'+(p.last_company||'—')+'／'+(p.last_reason||'—')+'　'+(p.last_time||'')+'</td>'+
    '</tr>').join('')||'<tr><td colspan=7 style="color:#999">暂无数据，先登记几位访客</td></tr>';}catch(_){}}
 load();setInterval(load,4000);
+</script></body></html>"""
+
+
+_GUARD_CALL_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>保安介入通话</title>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+<style>
+  body{margin:0;font-family:-apple-system,Segoe UI,'PingFang SC',sans-serif;background:#f4f1ea;
+    color:#2b2b2b;display:flex;min-height:100vh;align-items:center;justify-content:center}
+  .card{background:#fff;border-radius:20px;box-shadow:0 10px 40px rgba(0,0,0,.08);padding:32px 40px;
+    text-align:center;max-width:420px;width:90%}
+  h1{font-size:19px;margin:0 0 6px} p{color:#777;font-size:14px}
+  button{font-size:16px;padding:14px 28px;border:0;border-radius:999px;background:#c9742e;color:#fff;cursor:pointer}
+  .status{margin-top:16px;font-size:14px;color:#555;min-height:22px}
+</style></head><body>
+<div class="card">
+  <h1>👮 保安介入通话</h1>
+  <p id="room">房间：—</p>
+  <button id="btn">接入并对讲</button>
+  <div class="status" id="status">接入后 AI 会让位，由你和访客直接对话</div>
+</div>
+<script>
+const q=new URLSearchParams(location.search); const room=q.get('room');
+document.getElementById('room').textContent='房间：'+(room||'缺少 room 参数');
+const btn=document.getElementById('btn'),st=document.getElementById('status');
+btn.onclick=async()=>{ if(!room){st.textContent='缺少 room 参数';return;}
+  btn.disabled=true; st.textContent='接入中…';
+  try{
+    const id='guard-'+Math.random().toString(36).slice(2,7);
+    const r=await fetch('/token?room='+encodeURIComponent(room)+'&identity='+id);
+    const d=await r.json(); if(d.error)throw new Error(d.error);
+    const rm=new LivekitClient.Room();
+    rm.on(LivekitClient.RoomEvent.TrackSubscribed,(t)=>{if(t.kind==='audio'){
+      const el=t.attach();el.autoplay=true;el.setAttribute('playsinline','');document.body.appendChild(el);el.play&&el.play().catch(()=>{});}});
+    await rm.connect(d.url,d.token);
+    await rm.localParticipant.setMicrophoneEnabled(true);
+    st.innerHTML='✅ 已接入，AI 正在让位——请直接和访客对话。';
+  }catch(e){st.textContent='接入失败：'+e.message;btn.disabled=false;}
+};
 </script></body></html>"""
 
 

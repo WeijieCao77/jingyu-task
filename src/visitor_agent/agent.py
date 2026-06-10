@@ -11,6 +11,7 @@ Run:  python -m visitor_agent.agent dev      # local dev (hot reload)
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from dotenv import load_dotenv
@@ -73,6 +74,17 @@ class VisitorAgent(Agent):
     async def complete_registration(self, context: RunContext) -> str:  # noqa: ARG002
         """四项信息齐全后调用：完成登记、记录入场时间、推送门卫微信。"""
         return await self._reg.complete()
+
+    @function_tool()
+    async def request_human(
+        self, context: RunContext, reason: str | None = None  # noqa: ARG002
+    ) -> str:
+        """转人工：访客要求真人、或你听不懂/情况异常时调用，通知保安介入。
+
+        Args:
+            reason: 转人工的简短原因（如"访客要求真人""听不清"）
+        """
+        return self._reg.request_human(reason=reason)
 
 
 def _make_event_sink(call_id: str):
@@ -141,6 +153,30 @@ async def entrypoint(ctx: JobContext) -> None:
                 sink("user" if role == "user" else "agent", role, text, None)
         except Exception:  # noqa: BLE001
             logger.exception("transcript log error")
+
+    # Human takeover: when a guard joins the same room (identity starts with
+    # "guard"), the AI hands off — says a short line, then leaves the room so the
+    # guard and visitor talk directly. Works for browser/QR and phone alike,
+    # because all access modes share one LiveKit room.
+    @ctx.room.on("participant_connected")
+    def _on_participant(participant) -> None:  # noqa: ANN001
+        identity = getattr(participant, "identity", "") or ""
+        if not identity.startswith("guard"):
+            return
+        sink("human_joined", None, f"保安已接入通话（{identity}）", None)
+
+        async def _handoff() -> None:
+            try:
+                await session.say("门卫师傅来了，由他来跟您说，再见。", allow_interruptions=False)
+            except Exception:  # noqa: BLE001
+                logger.exception("handoff say error")
+            finally:
+                try:
+                    await session.aclose()  # AI leaves; guard + visitor remain
+                except Exception:  # noqa: BLE001
+                    logger.exception("handoff aclose error")
+
+        asyncio.create_task(_handoff())
 
     await session.start(agent=agent, room=ctx.room)
 
