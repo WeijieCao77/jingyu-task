@@ -46,6 +46,23 @@ class RegistrationSession:
         self.completed = False
         self.returning_match: dict | None = None
 
+    @staticmethod
+    def _returning_hint(prof: dict) -> str:
+        basis = {
+            "plate+phone": "车牌+手机均匹配，基本确定是本人本车",
+            "phone": "手机号匹配，是本人（可能换了车）",
+            "plate": "车牌匹配，是这辆车（可能换了司机，别假设同一人）",
+        }.get(prof.get("match_type", ""), "历史匹配")
+        who = prof.get("name") or "老客户"
+        count = prof.get("visit_count") or 0
+        freq = f"，累计第{count + 1}次来访" if count else ""
+        last = f"上次：{prof.get('last_company') or '—'}／{prof.get('last_reason') or '—'}"
+        return (
+            f" 【回访识别·{basis}】{who}{freq}。{last}。"
+            "请用一句话直接确认是否与上次相同（如『还是和上次一样来…吧？』），不要从头重问；"
+            "若对方说不一样，再据实更新。"
+        )
+
     def _emit(self, kind: str, text: str | None = None, payload: dict | None = None) -> None:
         if self.event_sink:
             try:
@@ -60,9 +77,12 @@ class RegistrationSession:
         company: str | None = None,
         reason: str | None = None,
         phone: str | None = None,
+        name: str | None = None,
     ) -> str:
         prev_plate, prev_phone = self.info.plate, self.info.phone
-        self.info.update(plate=plate, company=company, reason=reason, phone=phone)
+        self.info.update(
+            plate=plate, company=company, reason=reason, phone=phone, name=name
+        )
         # Newly learned an identifier (plate or phone)?
         newly_identified = (self.info.plate and self.info.plate != prev_plate) or (
             self.info.phone and self.info.phone != prev_phone
@@ -70,18 +90,17 @@ class RegistrationSession:
 
         hint = ""
         if self.lookup_returning and self.returning_match is None and newly_identified:
-            prev = self.lookup_returning(self.info.plate, self.info.phone)
-            if prev:
-                self.returning_match = prev
-                if not self.info.company and prev.get("company"):
-                    self.info.company = prev["company"]
-                if not self.info.reason and prev.get("reason"):
-                    self.info.reason = prev["reason"]
-                hint = (
-                    " 【回访车辆】该车牌历史记录：单位="
-                    f"{prev.get('company')}，事由={prev.get('reason')}。"
-                    "请直接向访客确认是否与上次相同，不要从头重问。"
-                )
+            prof = self.lookup_returning(self.info.plate, self.info.phone)
+            if prof and prof.get("match_type"):
+                self.returning_match = prof
+                # Personalise + offer the prior visit for confirmation.
+                if not self.info.name and prof.get("name"):
+                    self.info.name = prof["name"]
+                if not self.info.company and prof.get("last_company"):
+                    self.info.company = prof["last_company"]
+                if not self.info.reason and prof.get("last_reason"):
+                    self.info.reason = prof["last_reason"]
+                hint = self._returning_hint(prof)
 
         recorded = self.info.human_summary() or "（暂无）"
         missing = self.info.missing_labels_zh()
@@ -153,7 +172,6 @@ def make_db_lookup() -> LookupReturning:
     from .db import repo
 
     def _lookup(plate: str | None, phone: str | None) -> dict | None:
-        visit = repo.find_recent_visit(plate=plate, phone=phone)
-        return visit.to_dict() if visit else None
+        return repo.recognize(plate=plate, phone=phone)
 
     return _lookup

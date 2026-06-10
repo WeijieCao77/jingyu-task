@@ -49,6 +49,33 @@ def test_returning_lookup(temp_db):
     assert repo.find_recent_visit_by_plate("浙B00000") is None
 
 
+def test_recognize_profile(temp_db):
+    repo = temp_db
+    # 张师傅: phone 13800138000, visited twice in 沪A12345
+    repo.create_visit(
+        {"plate": "沪A12345", "company": "蓝色鲸鱼", "reason": "送货",
+         "phone": "13800138000", "name": "张师傅"}, "r1")
+    repo.create_visit(
+        {"plate": "沪A12345", "company": "蓝色鲸鱼", "reason": "送货",
+         "phone": "13800138000", "name": "张师傅"}, "r2")
+
+    # same person, same car → plate+phone
+    p = repo.recognize(plate="沪A12345", phone="13800138000")
+    assert p["match_type"] == "plate+phone" and p["visit_count"] == 2
+    assert p["name"] == "张师傅" and p["last_company"] == "蓝色鲸鱼"
+
+    # same person, different car → phone
+    p2 = repo.recognize(plate="浙B00000", phone="13800138000")
+    assert p2["match_type"] == "phone"
+
+    # same car, different person → plate (vehicle known)
+    p3 = repo.recognize(plate="沪A12345", phone="13999999999")
+    assert p3["match_type"] == "plate"
+
+    # unknown both
+    assert repo.recognize(plate="京A00000", phone="13700000000") is None
+
+
 def test_confirm_endpoint_opens_gate(temp_db, monkeypatch):
     from fastapi.testclient import TestClient
 

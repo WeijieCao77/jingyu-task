@@ -113,8 +113,33 @@ PUT http://<controller-ip>/ISAPI/ITC/Entrance/barrierGateCtrl/channels/1
 ## 7. 数据与加分项
 
 - **数据**：SQLite（本地）/ Neon Postgres（云）—— 换 `DATABASE_URL` 即可，零代码改动。`visits` 表 + plate/phone 索引。
-- **回访识别 ✅（车牌 + 手机号）**：车牌或手机号一进来就查历史（`repo.find_recent_visit`，先车牌后手机），命中则预填单位/事由并提示 LLM"直接确认、别重问"——换了车的老司机用手机号也能认出（见 `session_logic.RegistrationSession.record`）。
-- **每次开闸都有记录**：保安放行 → `visits.status=confirmed` + `confirmed_at`(=开闸时间)，并在 `call_events` 落一条 `gate`。`visits` 表（plate/phone 建索引）+ `call_events` 表由 `init_db` 首次运行自动建表，无需手动建库。
+- **回访识别 ✅（全面，按使用场景分级）**：`repo.recognize(plate, phone)` 返回**识别画像**而不只是一条记录——
+  以**手机号=人、车牌=车**的身份模型给出匹配依据、累计来访次数、姓名、上次单位/事由。`RegistrationSession` 据此让 AI 选措辞：
+
+  | 真实场景 | 匹配依据 | AI 行为 |
+  |---|---|---|
+  | 老司机·同车 | 车牌+手机 | 自信确认"还是上次一样…" |
+  | 老司机·换了车（租/借） | 仅手机 | 认出本人，确认 |
+  | 公司车·换了司机 | 仅车牌 | 认出车、**不假设同一人**，确认是不是同一位/同事由 |
+  | 常客 | 多次匹配 | "您是常客，第N次"，更熟络 |
+  | 报了姓名 | name（可选采集） | 用"张师傅"称呼 |
+
+  设计要点：**不盲目预填后直接放行**，而是把上次信息作为"一句话确认"抛回去，对方说不一样就据实更新——既快又不会认错人。
+
+- **每次开闸都有记录**：保安放行 → `visits.status=confirmed` + `confirmed_at`(=开闸时间)，并在 `call_events` 落一条 `gate`。
+
+## 7.5 数据存储：本地 vs 云（都要保存，按环境切换）
+
+数据通过 `DATABASE_URL` 一行切换，代码零改动（SQLAlchemy 抽象）：
+
+| 环境 | 存储 | 说明 |
+|---|---|---|
+| **本地 demo** | `sqlite:///./data/visits.db` | 文件落盘，**进程重启数据仍在**；零依赖零账号。`data/` 已 gitignore |
+| **生产 / 多机 / 永久** | **Neon Postgres**（`postgresql://...`） | 持久、Serverless、多实例共享、容器重启不丢；与 Serverless 部署天然搭配 |
+
+⚠️ **关键判断**：临时云容器（如 CI/沙箱）用本地 SQLite 会随容器回收**丢数据**，所以**生产必须用 Neon 这类托管云库**。
+表结构（`visits` + `call_events`，plate/phone 建索引）由 `init_db` 首次运行 `create_all` **自动建表**，无需手动建库。
+（演进到强一致/迁移需求时再引入 Alembic 迁移；demo 阶段 `create_all` 足够。）
 - **门卫查询 Agent ✅**：保安自然语言查数据（"本周多少车""高峰时段""张师傅来几次"）。用**安全的参数化工具**（count_visits / list_visits / busiest_hours）而非裸 text-to-SQL（防注入），Claude 选工具+措辞。CLI 与 `/guard/query` 两种入口。
 - **多路并发 ✅**：LiveKit 每通电话独立 job，`RegistrationSession` 每会话独立，无全局可变状态。
 - **Serverless ⚠️ 诚实边界**：LiveKit/Pipecat 的**音频层无法真 Serverless**（Cloudflare Workers 50ms CPU 上限、无长连接），必须常驻进程（VPS/Fly/Railway/容器）。可 Serverless 的是：**`/confirm` 与 `/guard/query` 端点 + Neon DB + CI/CD**。这点讲清=加分，讲不清=被问倒。

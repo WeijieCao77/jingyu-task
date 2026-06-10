@@ -29,27 +29,38 @@ def test_complete_blocks_when_incomplete():
     assert not reg.completed
 
 
-def test_returning_visitor_prefills_and_hints():
+def test_returning_visitor_by_plate_prefills_and_hints():
     def lookup(plate, phone):
         if plate == "沪A12345":
-            return {"company": "蓝色鲸鱼", "reason": "送货"}
+            return {"match_type": "plate", "visit_count": 2, "name": None,
+                    "last_company": "蓝色鲸鱼", "last_reason": "送货", "last_time": None}
         return None
 
     reg = RegistrationSession(notifier=MockNotifier(), lookup_returning=lookup)
     out = reg.record(plate="沪A12345")
-    assert "回访车辆" in out
-    # company/reason prefilled from history → only phone remains
-    assert reg.info.missing_fields() == ["phone"]
+    assert "回访识别" in out and "可能换了司机" in out  # cautious phrasing for plate-only
+    assert reg.info.missing_fields() == ["phone"]      # company/reason prefilled
 
 
-def test_returning_visitor_recognized_by_phone():
+def test_returning_visitor_by_phone_recognizes_person():
     def lookup(plate, phone):
         if phone == "13800138000":
-            return {"company": "蓝色鲸鱼", "reason": "拜访"}
+            return {"match_type": "phone", "visit_count": 3, "name": "张师傅",
+                    "last_company": "蓝色鲸鱼", "last_reason": "拜访", "last_time": None}
         return None
 
     reg = RegistrationSession(notifier=MockNotifier(), lookup_returning=lookup)
-    # plate unknown / not in history, but phone matches a prior visit
+    # different car, but phone identifies the person
     out = reg.record(plate="浙B99999", phone="13800138000")
-    assert "回访车辆" in out
+    assert "回访识别" in out and "张师傅" in out
     assert reg.info.company == "蓝色鲸鱼"
+    assert reg.info.name == "张师傅"
+
+
+def test_name_is_optional_not_required():
+    reg = RegistrationSession(notifier=MockNotifier())
+    reg.record(plate="沪A1", company="蓝色鲸鱼", reason="送货", phone="13800138000")
+    assert reg.info.is_complete()  # name not required for completion
+    reg2 = RegistrationSession(notifier=MockNotifier())
+    out = reg2.record(name="张师傅")
+    assert reg2.info.name == "张师傅" and "张师傅" not in (out or "")  # stored, not echoed weirdly

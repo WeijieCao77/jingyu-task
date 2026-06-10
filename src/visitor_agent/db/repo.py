@@ -57,6 +57,7 @@ def create_visit(info: dict, confirm_token: str, status: str = "pending") -> Vis
             company=info.get("company"),
             reason=info.get("reason"),
             phone=info.get("phone"),
+            name=info.get("name"),
             entry_time=info.get("entry_time"),
             status=status,
             confirm_token=confirm_token,
@@ -110,6 +111,50 @@ def find_recent_visit_by_plate(plate: str) -> Visit | None:
             .where(Visit.plate == plate)
             .order_by(Visit.created_at.desc())
         )
+
+
+def _profile(match_type: str, visit_count: int, v: Visit) -> dict:
+    return {
+        "match_type": match_type,          # plate+phone | phone | plate
+        "visit_count": visit_count,
+        "name": v.name,
+        "last_company": v.company,
+        "last_reason": v.reason,
+        "last_time": v.entry_time
+        or (v.created_at.isoformat() if v.created_at else None),
+    }
+
+
+def recognize(plate: str | None = None, phone: str | None = None) -> dict | None:
+    """Comprehensive returning-customer recognition.
+
+    Phone identifies the *person* (stable across vehicles); plate identifies the
+    *vehicle* (may have different drivers). We return a profile with the match
+    basis, lifetime visit count, name, and last visit — so the agent can choose
+    how confidently to greet (recognised person vs only-recognised vehicle).
+    """
+    with _session() as s:
+        phone_hits: list[Visit] = []
+        plate_hits: list[Visit] = []
+        if phone:
+            phone_hits = list(
+                s.scalars(
+                    select(Visit).where(Visit.phone == phone).order_by(Visit.created_at.desc())
+                )
+            )
+        if plate:
+            plate_hits = list(
+                s.scalars(
+                    select(Visit).where(Visit.plate == plate).order_by(Visit.created_at.desc())
+                )
+            )
+        if phone and phone_hits:
+            same_vehicle = bool(plate) and any(v.plate == plate for v in phone_hits)
+            mt = "plate+phone" if same_vehicle else "phone"
+            return _profile(mt, len(phone_hits), phone_hits[0])
+        if plate and plate_hits:
+            return _profile("plate", len(plate_hits), plate_hits[0])
+        return None
 
 
 def find_recent_visit(plate: str | None = None, phone: str | None = None) -> Visit | None:

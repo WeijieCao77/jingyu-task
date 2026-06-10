@@ -26,6 +26,7 @@ class Visit(Base):
     company: Mapped[str | None] = mapped_column(String(128))
     reason: Mapped[str | None] = mapped_column(String(128))
     phone: Mapped[str | None] = mapped_column(String(20), index=True)
+    name: Mapped[str | None] = mapped_column(String(32))  # optional, e.g. 张师傅
 
     # "YYYY-MM-DD HH:MM" in the configured local timezone (human-facing).
     entry_time: Mapped[str | None] = mapped_column(String(32))
@@ -48,6 +49,7 @@ class Visit(Base):
             "company": self.company,
             "reason": self.reason,
             "phone": self.phone,
+            "name": self.name,
             "entry_time": self.entry_time,
             "status": self.status,
             "created_at": self.created_at.isoformat() if self.created_at else None,

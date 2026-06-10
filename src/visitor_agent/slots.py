@@ -55,6 +55,7 @@ class VisitorInfo:
     company: str | None = None
     reason: str | None = None
     phone: str | None = None
+    name: str | None = None          # optional — for 张师傅 personalization
     entry_time: str | None = None
     extra: dict = field(default_factory=dict)
 
@@ -64,6 +65,7 @@ class VisitorInfo:
         company: str | None = None,
         reason: str | None = None,
         phone: str | None = None,
+        name: str | None = None,
     ) -> None:
         """Apply a partial update; only non-empty values overwrite."""
         if plate:
@@ -74,6 +76,8 @@ class VisitorInfo:
             self.reason = reason.strip()
         if phone:
             self.phone = normalize_phone(phone)
+        if name:
+            self.name = name.strip()
 
     def missing_fields(self) -> list[str]:
         return [f for f in REQUIRED_FIELDS if not getattr(self, f)]
@@ -105,5 +109,6 @@ class VisitorInfo:
             "company": self.company,
             "reason": self.reason,
             "phone": self.phone,
+            "name": self.name,
             "entry_time": self.entry_time,
         }

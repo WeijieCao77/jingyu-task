@@ -32,6 +32,7 @@ TOOLS = [
                 "company": {"type": "string", "description": "来访单位 / 找的公司"},
                 "reason": {"type": "string", "description": "来访事由，如 送货"},
                 "phone": {"type": "string", "description": "手机号"},
+                "name": {"type": "string", "description": "访客称呼/姓名（如张师傅，提到才填）"},
             },
         },
     },

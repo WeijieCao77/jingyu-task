@@ -47,6 +47,7 @@ class VisitorAgent(Agent):
         company: str | None = None,
         reason: str | None = None,
         phone: str | None = None,
+        name: str | None = None,
     ) -> str:
         """记录访客信息（可增量、可多次调用）。听到任何一项就立刻调用。
 
@@ -55,8 +56,11 @@ class VisitorAgent(Agent):
             company: 来访单位 / 找的公司
             reason: 来访事由，如 送货、拜访、面试
             phone: 手机号（原样传入即可）
+            name: 访客称呼/姓名（如"张师傅"，对方提到才填，可选）
         """
-        return self._reg.record(plate=plate, company=company, reason=reason, phone=phone)
+        return self._reg.record(
+            plate=plate, company=company, reason=reason, phone=phone, name=name
+        )
 
     @function_tool()
     async def complete_registration(self, context: RunContext) -> str:  # noqa: ARG002
