@@ -13,7 +13,14 @@ from __future__ import annotations
 
 import logging
 
-from livekit.agents import (
+from dotenv import load_dotenv
+
+# LiveKit's worker reads LIVEKIT_URL / API_KEY / SECRET (and plugin keys) from
+# os.environ — pydantic reading .env does NOT export them, so load .env into the
+# process environment here or the worker fails to connect.
+load_dotenv()
+
+from livekit.agents import (  # noqa: E402
     Agent,
     AgentSession,
     JobContext,

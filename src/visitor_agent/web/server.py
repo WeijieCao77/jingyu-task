@@ -351,7 +351,10 @@ load();setInterval(load,4000);
 
 def main() -> None:
     import uvicorn
+    from dotenv import load_dotenv
 
+    load_dotenv()  # make .env values (DB, notify, Hikvision, LiveKit) visible
+    get_settings.cache_clear()
     cfg = get_settings()
     uvicorn.run(app, host="0.0.0.0", port=cfg.web_port)
 
