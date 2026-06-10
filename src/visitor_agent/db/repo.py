@@ -38,6 +38,19 @@ def init_db(database_url: str | None = None) -> Engine:
     _ensure_sqlite_dir(url)
     connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
     _engine = create_engine(url, connect_args=connect_args, future=True)
+
+    if url.startswith("sqlite"):
+        # WAL lets the agent (writer) and web (reader/writer) hit the same file
+        # concurrently without "database is locked"; busy_timeout adds patience.
+        from sqlalchemy import event
+
+        @event.listens_for(_engine, "connect")
+        def _sqlite_pragmas(dbapi_conn, _record):  # noqa: ANN001
+            cur = dbapi_conn.cursor()
+            cur.execute("PRAGMA journal_mode=WAL")
+            cur.execute("PRAGMA busy_timeout=5000")
+            cur.close()
+
     _Session = sessionmaker(bind=_engine, expire_on_commit=False, future=True)
     Base.metadata.create_all(_engine)
     return _engine

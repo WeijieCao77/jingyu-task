@@ -101,6 +101,15 @@
 - ✅ **新增 `CHANGELOG.md`**：记录每次版本改动 + 计划变更时间线（v0.1→v0.7 已补齐）+ 计划池。
 - ✅ 测试 29 → **31 全绿**。
 
+## 第八轮（自主夜间·用户睡觉）
+
+- ✅ 自我代码审查修两个真实 bug：门卫查询 OpenAI 路径消息序列化；providers 传 `api_key=None` 隐患。
+- ✅ SQLite WAL + busy_timeout（双进程并发健壮）。
+- ✅ 海康抬杆双模式（stub 默认 / 配 `HIKVISION_URL` 走真实 ISAPI）+ 单测。
+- ✅ 中文音色升级真代码：`STT=deepgram` / `TTS=azure(zh-CN)` 一行 env 切换（lazy import）。
+- ✅ 测试 31 → **34 全绿**。决策与计划变更同步进 CHANGELOG v0.8。
+- 说明：本轮只做离线可验证、不需你账号/钱的项；真机电话/真账号项留待你 review 后定。
+
 ## 怎么快速验收（建议顺序）
 
 1. `PYTHONPATH=src pytest -q` → 应 16 passed。

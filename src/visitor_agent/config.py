@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     livekit_api_key: str = ""
     livekit_api_secret: str = ""
 
+    # ---- Gate barrier (Hikvision ISAPI). Leave URL empty = stub for demo. ----
+    hikvision_url: str = ""                   # e.g. http://192.168.1.64
+    hikvision_user: str = "admin"
+    hikvision_password: str = ""
+    hikvision_channel: int = 1
+
     # ---- Misc ----
     timezone: str = "Asia/Shanghai"
 

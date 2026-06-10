@@ -139,7 +139,18 @@ def _answer_openai(question: str, model: str, max_steps: int) -> str:
         msg = resp.choices[0].message
         if not msg.tool_calls:
             return (msg.content or "").strip()
-        messages.append(msg)
+        # Re-append the assistant turn as a clean dict (passing the raw SDK
+        # object back can carry null fields the API rejects).
+        assistant = {"role": "assistant", "content": msg.content}
+        assistant["tool_calls"] = [
+            {
+                "id": c.id,
+                "type": "function",
+                "function": {"name": c.function.name, "arguments": c.function.arguments},
+            }
+            for c in msg.tool_calls
+        ]
+        messages.append(assistant)
         for call in msg.tool_calls:
             out = run_tool(call.function.name, _json.loads(call.function.arguments or "{}"))
             messages.append({"role": "tool", "tool_call_id": call.id, "content": out})

@@ -42,6 +42,15 @@
   Dashboard 访客记录新增"**开闸时间**"列；新增本 `CHANGELOG.md`。测试 29→31。
 - **计划变更**：执行"更深优化"（常客画像 + 开闸时间单列）；引入版本/计划变更日志。
 
+### v0.8 — 自主夜间：代码审查修复 + 生产就绪 + 健壮性（用户睡觉，自行决定）
+- **改动**：
+  - 自我代码审查（medium）发现并修两个真实 bug：① 门卫查询 OpenAI 路径把原始 SDK message 对象塞回 messages（可能带 null 字段被 API 拒）→ 改为干净 dict；② providers 给插件传 `api_key=None` 的隐患 → 改为仅在非空时传。
+  - **并发健壮性**：SQLite 开启 WAL + busy_timeout，agent(写) 与 web(读/写) 同文件并发不再 "database is locked"。
+  - **生产就绪**：海康抬杆 `notify/gate.py` 双模式——默认 stub，配 `HIKVISION_URL` 即走真实 ISAPI（digest auth PUT），含单测（mock）。
+  - **中文音色升级路径落成真代码**：providers 增加 `STT=deepgram`、`TTS=azure(zh-CN)` 分支（lazy import + 一行 env 切换，文档标注需装对应插件）。
+  - 测试 31 → 34。
+- **计划变更**：用户睡前授权"自行决定并记录"。本轮聚焦离线可验证、不需用户账号/钱的高价值项（健壮性/生产就绪/选型可切换），不碰需真机/真账号的项。
+
 ---
 
 ## 待办 / 下一步候选（计划池）
