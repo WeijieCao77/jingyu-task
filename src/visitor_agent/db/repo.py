@@ -241,6 +241,49 @@ def latest_event_id() -> int:
         return int(s.scalar(select(func.max(CallEvent.id))) or 0)
 
 
+def visitor_profiles(limit: int = 50, min_visits: int = 1) -> list[dict]:
+    """Aggregate visit history into per-person profiles (常客名单 / 访客画像).
+
+    Grouped by phone (the person identity); falls back to plate when no phone.
+    Returns frequency, the plates/companies seen, last visit, and how many of
+    those visits actually opened the gate — feeds the admin view + query agent.
+    """
+    with _session() as s:
+        rows = list(s.scalars(select(Visit).order_by(Visit.created_at.desc())))
+
+    groups: dict[str, dict] = {}
+    for v in rows:  # rows are newest-first, so first sighting of a key is latest
+        key = v.phone or f"plate:{v.plate or '?'}"
+        p = groups.get(key)
+        if p is None:
+            p = {
+                "phone": v.phone, "name": v.name, "plates": set(), "companies": set(),
+                "visit_count": 0, "confirmed_count": 0,
+                "last_company": v.company, "last_reason": v.reason,
+                "last_time": v.entry_time or (v.created_at.isoformat() if v.created_at else None),
+            }
+            groups[key] = p
+        p["visit_count"] += 1
+        if v.status == "confirmed":
+            p["confirmed_count"] += 1
+        if v.plate:
+            p["plates"].add(v.plate)
+        if v.company:
+            p["companies"].add(v.company)
+        if not p["name"] and v.name:
+            p["name"] = v.name
+
+    profiles = []
+    for p in groups.values():
+        if p["visit_count"] < min_visits:
+            continue
+        p["plates"] = sorted(p["plates"])
+        p["companies"] = sorted(p["companies"])
+        profiles.append(p)
+    profiles.sort(key=lambda x: (-x["visit_count"], x.get("phone") or ""))
+    return profiles[:limit]
+
+
 def visits_by_hour(since: datetime | None = None) -> dict[int, int]:
     """Histogram of visit counts by hour-of-day (local entry_time string)."""
     counts: dict[int, int] = {}

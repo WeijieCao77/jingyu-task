@@ -53,6 +53,17 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "frequent_visitors",
+        "description": "返回常客名单/访客画像（按人聚合）：来访次数、车牌、常去单位、姓名、最近一次。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "min_visits": {"type": "integer", "description": "至少来访几次才算常客，默认1"},
+                "limit": {"type": "integer", "description": "最多返回几条，默认20"},
+            },
+        },
+    },
 ]
 
 
@@ -88,6 +99,12 @@ def run_tool(name: str, args: dict) -> str:
     if name == "busiest_hours":
         hist = repo.visits_by_hour(since=_parse_iso(args.get("since_iso")))
         return json.dumps({"by_hour": hist})
+    if name == "frequent_visitors":
+        profiles = repo.visitor_profiles(
+            limit=int(args.get("limit") or 20),
+            min_visits=int(args.get("min_visits") or 1),
+        )
+        return json.dumps(profiles, ensure_ascii=False)
     return json.dumps({"error": f"unknown tool {name}"})
 
 

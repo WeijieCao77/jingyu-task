@@ -93,6 +93,14 @@
 - ✅ 新增可选 `name` 字段（slots/Visit/工具/prompt 全链路）；`visits` 加 name 列。
 - ✅ 测试 27 → **29 全绿**（新增 recognize 画像 4 场景 + 姓名可选）。
 
+## 第七轮（更深优化 + 变更日志）
+
+- ✅ **常客名单 / 访客画像**：`repo.visitor_profiles()` 按人(手机)聚合——来访次数、车牌集、常去单位、姓名、已放行次数、最近一次。
+  管理后台 `/admin` + `/api/profiles`；门卫查询 Agent 新增 `frequent_visitors` 工具。
+- ✅ **开闸时间单列**：Dashboard 访客记录新增"开闸时间"列（confirmed_at）。
+- ✅ **新增 `CHANGELOG.md`**：记录每次版本改动 + 计划变更时间线（v0.1→v0.7 已补齐）+ 计划池。
+- ✅ 测试 29 → **31 全绿**。
+
 ## 怎么快速验收（建议顺序）
 
 1. `PYTHONPATH=src pytest -q` → 应 16 passed。

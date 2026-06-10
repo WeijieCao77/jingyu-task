@@ -46,7 +46,8 @@ mkdir -p data
 ./scripts/run_web.sh
 #   http://localhost:8080/voice      访客对着麦克风说话（无需电话）
 #   http://localhost:8080/qr         入口二维码（手机扫即用）
-#   http://localhost:8080/dashboard  保安实时后台
+#   http://localhost:8080/dashboard  保安实时后台（含开闸时间列）
+#   http://localhost:8080/admin      常客名单 / 访客画像
 
 # 3b. 起语音 Agent worker（首次先 download-files 拉模型）
 PYTHONPATH=src python -m visitor_agent.agent download-files
@@ -121,4 +122,6 @@ src/visitor_agent/
 tests/              16 个离线单测                    scenarios/     仿真脚本
 ```
 
-加分项状态：**回访识别 ✅** · **门卫查询 Agent ✅** · **多路并发 ✅（每通电话独立 job，无共享状态）** · **Serverless ⚠️ 分层可达（见 DESIGN.md）**。
+加分项状态：**回访识别 ✅（车牌/手机/姓名画像）** · **门卫查询 Agent ✅** · **常客名单 `/admin` ✅** · **多路并发 ✅** · **Serverless ⚠️ 分层可达（见 DESIGN.md）**。
+
+> 版本与计划变更时间线见 **[CHANGELOG.md](CHANGELOG.md)**。
