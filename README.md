@@ -1,5 +1,7 @@
 # 🐳 园区语音访客登记 Voice Agent
 
+> 📚 **所有文档的索引见 [DOCS.md](DOCS.md)**；产品全流程+双视角看 [PRODUCT_FLOW.md](PRODUCT_FLOW.md)；框架调研看 [FRAMEWORK_RESEARCH.md](FRAMEWORK_RESEARCH.md)。
+
 未登记车辆呼入 → AI 门卫**自然中文对话**采集（车牌/单位/手机/事由）→ 推送保安（Dashboard/微信/Discord）→ 保安确认 → 抬杆。**Agent 开口到推送 ≤25 秒**。
 
 ## 架构
