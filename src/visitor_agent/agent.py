@@ -31,6 +31,16 @@ from livekit.agents import (  # noqa: E402
     function_tool,
 )
 
+# Register default plugins at module import (= main thread). Job workers are
+# spawned (not forked) on Windows, so a lazy `from livekit.plugins import ...`
+# inside the entrypoint would run on a worker *thread* and raise
+# "Plugins must be registered on the main thread", crashing every call. Importing
+# here registers on the main thread; providers.py's lazy imports become no-ops.
+# Optional providers (deepgram/azure) stay lazy and self-register when selected.
+from livekit.plugins import anthropic as _anthropic  # noqa: E402,F401
+from livekit.plugins import openai as _openai  # noqa: E402,F401
+from livekit.plugins import silero as _silero  # noqa: E402,F401
+
 from .config import get_settings
 from .db import repo
 from .prompts import GREETING, SYSTEM_PROMPT

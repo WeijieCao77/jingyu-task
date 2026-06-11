@@ -81,6 +81,17 @@
   - **语音保持纯中文**：`STT_LANGUAGE=zh` 锁定中文识别，不开自动语种识别；prompt 全中文、TTS 说中文。（用户决定，当前默认即如此，无需改码。）
   - **转人工两模式确认**：① 管理员主动介入（每通来电可一键介入）② 客户要求转人工；都不触发则默认 AI。（已实现，见 v0.11 + PRODUCT_FLOW §5.5。）
 
+### v0.13 — 采纳本地真跑（Windows 11 ARM64）反馈，修跨平台 bug
+> 来源：用户在真实 Windows 机器上跑通并提交 `LOCAL_RUN_ISSUES.md`，定位多个真实问题。
+- **P0-3（跨平台必修）**：`agent.py` 顶层预注册默认插件（openai/silero/anthropic）。Windows 用 spawn 起 job 子进程，providers 的惰性 import 落在工作线程 → `Plugins must be registered on the main thread` 崩溃、AI 完全不出声。顶层 import 在主线程注册解决。
+- **P1-1（Windows 时区）**：`requirements.txt` 加 `tzdata; sys_platform=="win32"`，否则 `zoneinfo("Asia/Shanghai")` 在 Windows 抛错（4 测试失败 + 运行时 entry_time 崩）。
+- **P1-2（turn-detector 依赖）**：钉 `transformers>=4.40,<5`、`huggingface_hub>=0.23,<1`（5.x/1.x 破坏 turn-detector 模型加载）；dry-run 验证解析无冲突。
+- **P1-3（挂断按钮）**：`/voice` 与 `/guard_call` 加红色「挂断」按钮（`room.disconnect()`），不再只能关标签页。
+- **P2-3（单 OpenAI key 跑仿真器）**：`sim/run_text.py` 改为尊重 `LLM_PROVIDER`——OpenAI 时走 Chat Completions tool-use 循环，名副其实"单 key 跑全部"。
+- **文档**：SMOKE_CHECK 新增 §C5 Windows 专用备注（x64 Python / 非 Docker LiveKit 二进制 / PowerShell 命令 / dev 房间坑）；修 `37→39 passed`；README 加 Windows 指引。
+- 测试仍 **39 passed**。
+- **计划变更**：确立"跨平台（含 Windows ARM64）首跑可用"为交付门槛；turn-detector 仍保留 VAD 优雅降级。
+
 ---
 
 ## 待办 / 下一步候选（计划池）

@@ -9,7 +9,7 @@
 | # | 检查 | 命令/方法 | 期望 |
 |---|---|---|---|
 | 1 | 依赖完整 | `pip install -r requirements.txt` 末尾无 error | exit 0 |
-| 2 | 单测全绿 | `PYTHONPATH=src pytest -q` | `37 passed` |
+| 2 | 单测全绿 | `PYTHONPATH=src pytest -q` | `39 passed` |
 | 3 | 模型已下载 | `PYTHONPATH=src python -m visitor_agent.agent download-files` | 正常退出（首次约 1–2 分钟） |
 | 4 | .env 生效 | `PYTHONPATH=src python -c "from dotenv import load_dotenv;load_dotenv();import os;print(bool(os.getenv('OPENAI_API_KEY')), os.getenv('LIVEKIT_URL'))"` | `True ws://localhost:7880` |
 | 5 | LiveKit 活着 | `curl -s localhost:7880` | 有响应（任意 HTTP 响应即可，连接被拒=容器没起） |
@@ -38,6 +38,17 @@
 5. **计时**：AI 开口 → 访客记录出现 **≤25 秒**。
 6. 同车牌再来一次 → 开场直接确认（回访识别）。
 7. `python -m visitor_agent.guard_query "今天多少访问车辆？"` 数字正确。
+
+## C5. Windows 专用备注（已在真实 Windows 11 ARM64 跑通）
+
+| 事项 | 做法 |
+|---|---|
+| **ARM64 机器（骁龙等）** | 必须用 **x64 Python**（不是系统自带 ARM64 Python）——`livekit-blingfire` 无 win_arm64 wheel。装官方 x64 Python 3.12（用户级即可），用它建 venv；Win11 on ARM 的 x64 模拟能加载所有原生扩展。 |
+| **没装 Docker** | 用 LiveKit 官方 Windows 二进制：从 github.com/livekit/livekit/releases 下对应平台包，`livekit-server.exe --dev`（等价 `ws://localhost:7880` + devkey/secret）。会打印一段 `capacity management is unavailable` 告警，**非致命可忽略**。 |
+| **PowerShell 命令** | `source .venv/bin/activate` → `.\.venv\Scripts\Activate.ps1`；`cp` → `Copy-Item`；`mkdir -p` → `New-Item -ItemType Directory -Force`；行内 `PYTHONPATH=src python ...` → 先 `$env:PYTHONPATH="src"; $env:PYTHONUTF8="1"` 再 `python ...`。 |
+| **pip 刷红字 `Logging error`** | OneDrive/中文路径 + 旧控制台导致，**只影响日志不影响安装**；末行有 `Successfully installed` 即成功。可设 `$env:PIP_NO_COLOR=1`。 |
+| **`curl`** | PowerShell 里 `curl` 是 `Invoke-WebRequest` 别名；用 `Invoke-WebRequest http://localhost:7880` 或 `curl.exe`。 |
+| **dev 模式房间坑** | LiveKit 只对**新建房间**自动派 job。若先开浏览器占住 `voice-demo` 房间再启/重启 worker，AI 不出声 → **刷新/重连浏览器**（或先关标签页清空房间）。 |
 
 ## D. 已知未验证项（修复时别误判为新 bug）
 

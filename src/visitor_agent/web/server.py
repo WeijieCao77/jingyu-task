@@ -306,28 +306,33 @@ _VOICE_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
   <p>点下面按钮、允许麦克风权限，就能直接对着电脑说话登记——无需电话。<br>
      说完打开 <a href="/dashboard" target="_blank">后台 Dashboard</a> 看实时效果。</p>
   <button id="btn">📞 接入门卫</button>
+  <button id="hang" style="display:none;background:#c62828;margin-left:8px">挂断</button>
   <div class="status" id="status"></div>
 </div>
 <script>
-const btn=document.getElementById('btn'),st=document.getElementById('status'),mic=document.getElementById('mic');
+const btn=document.getElementById('btn'),hang=document.getElementById('hang'),
+      st=document.getElementById('status'),mic=document.getElementById('mic');
+let room;
+function reset(){mic.style.display='none';hang.style.display='none';btn.disabled=false;}
 btn.onclick=async()=>{
   btn.disabled=true; st.textContent='正在接入…';
   try{
     const id='visitor-'+Math.random().toString(36).slice(2,8);
     const r=await fetch('/token?room=voice-demo&identity='+id);
     const d=await r.json(); if(d.error){throw new Error(d.error);}
-    const room=new LivekitClient.Room();
+    room=new LivekitClient.Room();
     room.on(LivekitClient.RoomEvent.TrackSubscribed,(track)=>{
       if(track.kind==='audio'){const el=track.attach();el.autoplay=true;
         el.setAttribute('playsinline','');el.muted=false;document.body.appendChild(el);
         el.play&&el.play().catch(()=>{});}});
-    room.on(LivekitClient.RoomEvent.Disconnected,()=>{st.textContent='已挂断';mic.style.display='none';btn.disabled=false;});
+    room.on(LivekitClient.RoomEvent.Disconnected,()=>{st.textContent='已挂断';reset();});
     await room.connect(d.url,d.token);
     await room.localParticipant.setMicrophoneEnabled(true);
-    mic.style.display='block';
-    st.innerHTML='✅ 已接入，门卫会先开口——请直接说话。<br>（说完可关闭页面挂断）';
+    mic.style.display='block'; hang.style.display='inline-block';
+    st.innerHTML='✅ 已接入，门卫会先开口——请直接说话。';
   }catch(e){st.textContent='接入失败：'+e.message+'（确认 .env 里 LiveKit 配置 + agent worker 已启动）';btn.disabled=false;}
 };
+hang.onclick=async()=>{try{await room.disconnect();}catch(_){}st.textContent='已挂断';reset();};
 </script></body></html>"""
 
 
@@ -382,26 +387,31 @@ _GUARD_CALL_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8"
   <h1>👮 保安介入通话</h1>
   <p id="room">房间：—</p>
   <button id="btn">接入并对讲</button>
+  <button id="hang" style="display:none;background:#c62828;margin-left:8px">挂断</button>
   <div class="status" id="status">接入后 AI 会让位，由你和访客直接对话</div>
 </div>
 <script>
-const q=new URLSearchParams(location.search); const room=q.get('room');
-document.getElementById('room').textContent='房间：'+(room||'缺少 room 参数');
-const btn=document.getElementById('btn'),st=document.getElementById('status');
-btn.onclick=async()=>{ if(!room){st.textContent='缺少 room 参数';return;}
+const q=new URLSearchParams(location.search); const roomName=q.get('room');
+document.getElementById('room').textContent='房间：'+(roomName||'缺少 room 参数');
+const btn=document.getElementById('btn'),hang=document.getElementById('hang'),st=document.getElementById('status');
+let rm;
+btn.onclick=async()=>{ if(!roomName){st.textContent='缺少 room 参数';return;}
   btn.disabled=true; st.textContent='接入中…';
   try{
     const id='guard-'+Math.random().toString(36).slice(2,7);
-    const r=await fetch('/token?room='+encodeURIComponent(room)+'&identity='+id);
+    const r=await fetch('/token?room='+encodeURIComponent(roomName)+'&identity='+id);
     const d=await r.json(); if(d.error)throw new Error(d.error);
-    const rm=new LivekitClient.Room();
+    rm=new LivekitClient.Room();
     rm.on(LivekitClient.RoomEvent.TrackSubscribed,(t)=>{if(t.kind==='audio'){
       const el=t.attach();el.autoplay=true;el.setAttribute('playsinline','');document.body.appendChild(el);el.play&&el.play().catch(()=>{});}});
+    rm.on(LivekitClient.RoomEvent.Disconnected,()=>{st.textContent='已挂断';hang.style.display='none';btn.disabled=false;});
     await rm.connect(d.url,d.token);
     await rm.localParticipant.setMicrophoneEnabled(true);
+    hang.style.display='inline-block';
     st.innerHTML='✅ 已接入，AI 正在让位——请直接和访客对话。';
   }catch(e){st.textContent='接入失败：'+e.message;btn.disabled=false;}
 };
+hang.onclick=async()=>{try{await rm.disconnect();}catch(_){}st.textContent='已挂断';hang.style.display='none';btn.disabled=false;};
 </script></body></html>"""
 
 

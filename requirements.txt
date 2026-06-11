@@ -5,6 +5,15 @@ livekit-plugins-anthropic~=1.5
 livekit-plugins-silero~=1.5
 livekit-api>=1.0          # mint join tokens for the in-browser voice client
 
+# Windows lacks the IANA tz DB that zoneinfo (Asia/Shanghai) needs at runtime.
+tzdata; sys_platform == "win32"
+
+# Pin to versions compatible with livekit-plugins-turn-detector 1.5.x
+# (transformers 5.x / huggingface_hub 1.x break the turn-detector model load;
+#  the agent still degrades to VAD-only, but these keep turn detection working).
+transformers>=4.40,<5
+huggingface_hub>=0.23,<1
+
 # --- LLM / STT / TTS SDKs (also used by the offline simulator) ---
 anthropic>=0.69
 openai>=2.0

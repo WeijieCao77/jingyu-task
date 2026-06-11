@@ -37,6 +37,8 @@ docker run -d --name livekit-dev -p 7880:7880 -p 7881:7881 -p 7882:7882/udp \
 # 打开 http://localhost:8080/voice 点"接入门卫"对话；后台点"✅放行"
 ```
 
+> **Windows / ARM64 / 无 Docker**：见 [SMOKE_CHECK.md](SMOKE_CHECK.md) §C5（用 x64 Python + LiveKit 原生二进制 + PowerShell 命令对照）。
+
 无语音快速验证：`./scripts/run_sim.sh --scenario scenarios/songhuo.json --live`（文本仿真，同一套逻辑）。
 测试：`PYTHONPATH=src pytest -q`。电话/扫码/教程：[SETUP_CHECKLIST.md](SETUP_CHECKLIST.md) · [QR_DEMO.md](QR_DEMO.md) · [ACCEPTANCE_PROMPT.md](ACCEPTANCE_PROMPT.md)（一键验收）· [USER_TODO.md](USER_TODO.md)（密钥教程）。
 
