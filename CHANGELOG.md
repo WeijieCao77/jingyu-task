@@ -92,6 +92,13 @@
 - 测试仍 **39 passed**。
 - **计划变更**：确立"跨平台（含 Windows ARM64）首跑可用"为交付门槛；turn-detector 仍保留 VAD 优雅降级。
 
+### v0.14 — 远程访问文档纠偏：手机操作本地 Claude Code 为主
+- **改动**：用户澄清核心需求是"在外面用手机**操作本地 Claude Code**（对话、改本地文件、调环境）"，而不只是测 app。重写 `REMOTE_ACCESS.md` 为"两个需求两条路"：
+  - **需求 A（操作本地 Claude Code）**：推荐 **VS Code Tunnel**（Windows 原生、手机浏览器 vscode.dev、终端里 `claude` 即对话 + 文件编辑），无需 Tailscale；备选 SSH+tmux。各附给本地 CC 的 prompt。
+  - **需求 B（测语音 app）**：保留 Tailscale 方案（让手机连本地 LiveKit 实时音频）。
+  - 说明两条路可同时用（一个标签指挥 Claude Code、一个标签测语音）。
+- **计划变更**：远程访问的主线从"手机测 app"修正为"手机操作本地 Claude Code"。
+
 ---
 
 ## 待办 / 下一步候选（计划池）
