@@ -49,7 +49,7 @@
 | 16 | AI 回复慢，要提速 | `preemptive_generation`+VAD 调优；**架构切 realtime** | ✅/🔀⏳ | `ARCHITECTURE_AB.md` |
 | 17 | 语音识别错号码 → 加 AI 验证层 | 登记前复述车牌(逐位)+手机(分组)让访客确认 | ✅⏳ | `prompts.py` |
 | 18 | UI 简陋难看；门卫界面太复杂 | 访客页美化；门卫页砍对话流→表格+按钮 | ✅⏳ | `web/server.py` |
-| 19 | 车牌基础数据要准 + 输入公司名单自动匹配 | 公司名单模糊匹配 + 车牌省份归一（默认关） | 🔀 | `feature/data-matching` (PR #3) |
+| 19 | 车牌基础数据要准 + 输入公司名单自动匹配 | 公司名单模糊匹配 + 车牌省份归一（默认关，已合并） | ✅ | 已并入 dev |
 | 20 | 初步用 Telegram，企微备用/未来国内落地 | 多渠道（Telegram 主线已合并；企微预备） | ✅/📝 | `NOTIFY_SETUP.md` |
 | 21 | 企微要不要公司/执照？ | 不需要，手机号即可建组织跑群机器人 | 📝 | `WECHAT_PLAN.md §零` |
 | 22 | Telegram 与企微同步推进 | `NOTIFY_CHANNEL=telegram,wecom` 同时推 | ✅ | `dispatch.py` |
@@ -72,7 +72,7 @@ v0.15 全云端部署 → v0.16 产品打磨(确认层/提速/简化/美化) →
 |---|---|---|
 | `claude/voice-agent-takehome-qzjbd2`(dev) | 主线 | 全部已合并能力 + Telegram + 模型可换 |
 | `feature/wechat-push` (PR #2) | **已合并** | Telegram/企微多渠道 |
-| `feature/data-matching` (PR #3) | 开着 | 公司名单匹配（默认关）——待你定是否合 |
+| `feature/data-matching` (PR #3) | **已合并** | 公司名单匹配（默认关）；待用户给模拟名单测一轮 |
 | `feature/realtime-voice` | 开着(PR 待建) | `VOICE_MODE=realtime` 提速 A/B——待你真机验证 |
 
 ## 五、待办 / 计划池（详见 CHANGELOG 末尾）

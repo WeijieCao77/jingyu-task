@@ -28,12 +28,29 @@ FIELD_LABELS_ZH = {
 _PLATE_RE = re.compile(r"[一-龥][A-Z][A-Z0-9]{5,6}", re.IGNORECASE)
 _PHONE_RE = re.compile(r"1[3-9]\d{9}")
 
+# Spoken province names → plate character. STT often returns the full province
+# name ("广东A12345") instead of the abbreviation; snap it deterministically.
+_PROVINCE_NAME_TO_CHAR = {
+    "北京": "京", "天津": "津", "上海": "沪", "重庆": "渝", "河北": "冀",
+    "山西": "晋", "内蒙古": "蒙", "辽宁": "辽", "吉林": "吉", "黑龙江": "黑",
+    "江苏": "苏", "浙江": "浙", "安徽": "皖", "福建": "闽", "江西": "赣",
+    "山东": "鲁", "河南": "豫", "湖北": "鄂", "湖南": "湘", "广东": "粤",
+    "广西": "桂", "海南": "琼", "四川": "川", "贵州": "贵", "云南": "云",
+    "西藏": "藏", "陕西": "陕", "甘肃": "甘", "青海": "青", "宁夏": "宁",
+    "新疆": "新",
+}
+
 
 def normalize_plate(value: str | None) -> str | None:
-    """Uppercase letters, strip spaces/dots; keep the leading province char."""
+    """Uppercase letters, strip spaces/dots; map spoken province name → char."""
     if not value:
         return None
     cleaned = re.sub(r"[\s\.\-·•‧・]", "", value).upper()
+    # Replace a leading spoken province name with its plate character.
+    for name, char in _PROVINCE_NAME_TO_CHAR.items():
+        if cleaned.startswith(name):
+            cleaned = char + cleaned[len(name):]
+            break
     m = _PLATE_RE.search(cleaned)
     return m.group(0) if m else (cleaned or None)
 
