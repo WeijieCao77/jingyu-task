@@ -37,6 +37,10 @@ def build_llm(cfg: Settings):
         kwargs = {"model": cfg.llm_model}
         if cfg.openai_api_key:
             kwargs["api_key"] = cfg.openai_api_key
+        # Any OpenAI-compatible endpoint (OpenRouter / DashScope-compat / DeepSeek
+        # / Moonshot / Volcengine ...) → the customer can pick *any* model.
+        if cfg.llm_base_url:
+            kwargs["base_url"] = cfg.llm_base_url
         return openai.LLM(**kwargs)
     if cfg.llm_provider == "anthropic":
         from livekit.plugins import anthropic

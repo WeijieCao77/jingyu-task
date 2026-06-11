@@ -116,6 +116,11 @@
 - 测试 39 passed（更新 voice 文案断言）。
 - **计划变更**：从"基础设施/远程访问"切回"产品打磨"；号码准确性用 AI 确认层兜底而非强求模型。
 
+### v0.19 — 模型可换架构（客户最终决定用哪个模型）
+- **改动**：LLM 增加 `LLM_BASE_URL`——指向任一 **OpenAI 兼容端点**即可接 GPT/Claude/Gemini/Qwen/Llama/DeepSeek/豆包/Kimi 等**任意模型（含国内）**，工具调用照常；`providers.build_llm` 透传 base_url，留空=官方 OpenAI。
+- **`MODELS.md`**：现在用哪些模型、怎么逐项换（LLM/STT/TTS/语音架构）、客户可选任意模型的配置矩阵、加新 provider 的方式。`.env.example` 加 `LLM_BASE_URL` 示例。
+- **计划变更**：明确"模型是配置项不是架构"——客户选定后改 `.env` 三五行即切换，无需改码。
+
 ---
 
 ## 待办 / 下一步候选（计划池）

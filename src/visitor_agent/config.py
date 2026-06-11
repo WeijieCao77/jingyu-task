@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     llm_provider: str = "openai"             # openai | anthropic
     llm_model: str = "gpt-4o-mini"           # anthropic 时用 claude-haiku-4-5
     anthropic_api_key: str = ""
+    # 客户想用"任意模型"时：把 LLM_BASE_URL 指向任一 OpenAI 兼容端点
+    # （OpenRouter / 阿里 DashScope-compat / DeepSeek / Moonshot / 火山 等），
+    # LLM_MODEL 填该端点的模型名，OPENAI_API_KEY 填该端点的 key。留空=用官方 OpenAI。
+    llm_base_url: str = ""
 
     # ---- STT ----
     stt_provider: str = "openai"
