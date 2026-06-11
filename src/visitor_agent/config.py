@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     livekit_api_key: str = ""
     livekit_api_secret: str = ""
 
+    # ---- Latency tuning (lower = faster responses, slightly more risk of
+    #      cutting the speaker off; tune per real-world testing) ----
+    preemptive_generation: bool = True       # start LLM before turn fully ends
+    vad_min_silence: float = 0.4             # silero endpoint silence (s)
+    min_endpointing_delay: float = 0.4       # how long to wait before replying
+
     # ---- Gate barrier (Hikvision ISAPI). Leave URL empty = stub for demo. ----
     hikvision_url: str = ""                   # e.g. http://192.168.1.64
     hikvision_user: str = "admin"

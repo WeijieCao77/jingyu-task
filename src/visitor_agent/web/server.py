@@ -208,112 +208,137 @@ def guard_query(q: GuardQuery) -> JSONResponse:
 
 _DASHBOARD_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>门卫控制台 · Visitor Agent</title>
+<title>门卫控制台</title>
 <style>
-  :root{--cream:#f4f1ea;--card:#fff;--ink:#2b2b2b;--muted:#777;--accent:#c9742e}
-  *{box-sizing:border-box} body{margin:0;font-family:-apple-system,Segoe UI,Roboto,'PingFang SC',sans-serif;
-    background:var(--cream);color:var(--ink)}
-  header{padding:16px 24px;display:flex;align-items:center;gap:12px}
-  header h1{font-size:18px;margin:0} .dot{width:10px;height:10px;border-radius:50%;background:#39b54a;
-    box-shadow:0 0 0 0 rgba(57,181,74,.6);animation:p 1.6s infinite} @keyframes p{to{box-shadow:0 0 0 10px rgba(57,181,74,0)}}
-  .wrap{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;padding:0 24px 24px}
-  @media(max-width:820px){.wrap{grid-template-columns:1fr}}
-  .panel{background:var(--card);border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.06);padding:16px;min-height:200px}
-  .panel h2{font-size:14px;color:var(--muted);margin:0 0 10px;text-transform:uppercase;letter-spacing:.05em}
-  #feed{max-height:62vh;overflow:auto;display:flex;flex-direction:column;gap:8px}
-  .ev{padding:8px 12px;border-radius:12px;line-height:1.5;animation:f .3s ease}
-  @keyframes f{from{opacity:0;transform:translateY(6px)}} .ev .t{font-size:11px;color:var(--muted);margin-right:6px}
-  .user{background:#eef4ff} .agent{background:#fff6ec;border:1px solid #f3e2cf}
-  .slot{background:#f3f7ef;color:#3a6} .completed{background:#e8f7ec;font-weight:600}
-  .pushed{background:#eaf6ff} .confirmed{background:#e9f9ea;font-weight:600} .gate{background:#fff0f0;color:#b23}
-  .call_started{background:#f0eefc;font-weight:600}
-  .escalation{background:#fff3e0;color:#b26a00;font-weight:700;border:1px solid #f0c98a}
-  .human_joined{background:#eef7ff;font-weight:600}
-  .slots{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
-  .chip{background:#f6f3ec;border-radius:999px;padding:6px 12px;font-size:13px}
-  .chip b{color:var(--accent)} table{width:100%;border-collapse:collapse;font-size:13px}
-  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #eee} .badge{font-size:11px;padding:2px 8px;border-radius:999px}
-  .pending{background:#fff3e0;color:#b26a00} .confirmedb{background:#e8f7ec;color:#2e7d32}
-  .go{border:0;border-radius:999px;background:#39b54a;color:#fff;padding:5px 12px;cursor:pointer;font-size:12px}
+  :root{--bg:#eef1f6;--card:#fff;--ink:#1f2733;--muted:#8a94a6;--line:#eceff4;
+        --green:#1ea672;--greenbg:#e7f6ef;--amber:#c77b1a;--amberbg:#fdf3e3}
+  *{box-sizing:border-box} body{margin:0;font-family:-apple-system,'Segoe UI',Roboto,'PingFang SC',sans-serif;
+    background:var(--bg);color:var(--ink)}
+  header{padding:18px 28px;display:flex;align-items:center;gap:12px}
+  header h1{font-size:20px;margin:0;font-weight:700;letter-spacing:.5px}
+  header .sub{color:var(--muted);font-size:13px}
+  header a{margin-left:auto;color:#566;text-decoration:none;font-size:14px;
+    background:#fff;padding:8px 14px;border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+  .live{width:9px;height:9px;border-radius:50%;background:var(--green);
+    box-shadow:0 0 0 0 rgba(30,166,114,.5);animation:p 1.8s infinite}
+  @keyframes p{to{box-shadow:0 0 0 9px rgba(30,166,114,0)}}
+  .wrap{padding:0 28px 32px;max-width:1100px}
+  #alerts{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+  .alert{background:var(--amberbg);border:1px solid #f0d8a8;color:#8a5a12;border-radius:14px;
+    padding:12px 16px;display:flex;align-items:center;gap:12px;animation:f .3s ease}
+  @keyframes f{from{opacity:0;transform:translateY(-4px)}}
+  .alert .join{margin-left:auto;background:var(--amber);color:#fff;border:0;border-radius:999px;
+    padding:8px 16px;font-size:14px;cursor:pointer;text-decoration:none}
+  .card{background:var(--card);border-radius:18px;box-shadow:0 8px 30px rgba(20,30,50,.06);overflow:hidden}
+  .card h2{font-size:15px;margin:0;padding:18px 22px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:8px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:12px 16px;background:#fafbfd}
+  td{padding:14px 16px;border-top:1px solid var(--line);vertical-align:middle}
+  tr.new td{animation:hl 2s ease}
+  @keyframes hl{from{background:#fff7e9}}
+  .plate{font-weight:700;font-variant-numeric:tabular-nums}
+  .pill{font-size:12px;padding:4px 12px;border-radius:999px;font-weight:600}
+  .pill.ok{background:var(--greenbg);color:var(--green)}
+  .pill.wait{background:var(--amberbg);color:var(--amber)}
+  .go{border:0;border-radius:10px;background:var(--green);color:#fff;padding:9px 18px;
+    font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 3px 10px rgba(30,166,114,.3)}
+  .go:active{transform:translateY(1px)}
+  .empty{padding:40px;text-align:center;color:var(--muted)}
+  .muted{color:var(--muted)}
 </style></head><body>
-<header><span class="dot"></span><h1>🐳 门卫控制台 · 实时</h1>
-<span style="color:var(--muted);font-size:13px">拨打电话后，这里实时显示对话、采集字段、推送与放行</span></header>
+<header><span class="live"></span><h1>🐳 门卫控制台</h1>
+<span class="sub">收到访客信息 → 核对 → 一键放行</span>
+<a href="/admin" target="_blank">🏆 常客名单</a></header>
 <div class="wrap">
-  <div class="panel"><h2>📞 实时通话时间线</h2>
-    <div class="slots" id="slots"></div>
-    <div id="feed"></div>
-  </div>
-  <div class="panel"><h2>🗂 访客记录 · 保安点"放行"即确认　<a href="/admin" target="_blank" style="font-size:12px">常客名单 →</a></h2>
-    <table><thead><tr><th>车牌</th><th>单位</th><th>事由</th><th>登记</th><th>开闸时间</th><th>状态</th></tr></thead>
-    <tbody id="visits"></tbody></table>
+  <div id="alerts"></div>
+  <div class="card">
+    <h2>🗂 访客登记</h2>
+    <table><thead><tr><th>车牌</th><th>来访单位</th><th>事由</th><th>手机</th><th>姓名</th>
+      <th>登记时间</th><th>状态</th><th></th></tr></thead>
+      <tbody id="visits"></tbody></table>
+    <div class="empty" id="empty" style="display:none">暂无访客记录</div>
   </div>
 </div>
 <script>
-const F={user:'你 · 访客',agent:'AI 门卫',slot:'抽取',completed:'登记完成',
-  pushed:'推送门卫',confirmed:'保安确认',gate:'抬杆',call_started:'来电',
-  escalation:'⚠️ 转人工',human_joined:'保安接入'};
-const feed=document.getElementById('feed'),slots=document.getElementById('slots');
-function row(e){const d=document.createElement('div');d.className='ev '+e.kind;
-  const t=(e.created_at||'').slice(11,19);
-  let extra='';
-  // Two ways into a live call: manager proactively (on any 来电), or after the
-  // customer/AI asked (escalation). Either shows a one-click join button.
-  if((e.kind==='escalation'||e.kind==='call_started')&&e.call_id){
-    const label=e.kind==='escalation'?'📞 介入通话':'📞 主动介入';
-    extra=' <a href="/guard_call?room='+encodeURIComponent(e.call_id)+
-      '" target="_blank" style="color:#c9742e;font-weight:700">'+label+'</a>';}
-  d.innerHTML='<span class="t">'+t+'</span><b>'+(F[e.kind]||e.kind)+'</b> '+(e.text||'')+extra;
-  feed.appendChild(d);feed.scrollTop=feed.scrollHeight;
-  if(e.kind==='slot'&&e.payload){try{const p=JSON.parse(e.payload);
-    slots.innerHTML=['plate','company','reason','phone'].map(k=>{
-      const L={plate:'车牌',company:'单位',reason:'事由',phone:'手机'}[k];
-      return '<span class="chip">'+L+'：<b>'+(p[k]||'…')+'</b></span>';}).join('');}catch(_){}}
+// Guard view = info table + buttons only. Full transcript stays in the DB; the
+// only live events surfaced here are the ones a guard must act on: an incoming
+// call (proactive takeover) and a transfer-to-human request.
+const alerts={}; // call_id -> element
+function renderAlert(e){
+  if(e.kind==='human_joined'){const el=alerts[e.call_id]; if(el){el.remove();delete alerts[e.call_id];} return;}
+  if(e.kind!=='call_started'&&e.kind!=='escalation')return;
+  let el=alerts[e.call_id];
+  if(!el){el=document.createElement('div');el.className='alert';alerts[e.call_id]=el;
+    document.getElementById('alerts').appendChild(el);}
+  const esc=e.kind==='escalation';
+  el.style.background=esc?'#fdecec':'';el.style.borderColor=esc?'#f3c0c0':'';
+  el.innerHTML=(esc?'⚠️ <b>访客请求转人工</b>　':'📞 <b>有访客来电</b>　')+
+    '<span class="muted">'+(e.text||'')+'</span>'+
+    '<a class="join" href="/guard_call?room='+encodeURIComponent(e.call_id)+'" target="_blank">'+
+    (esc?'立即介入':'介入通话')+'</a>';
 }
-const es=new EventSource('/events/stream');es.onmessage=m=>{try{row(JSON.parse(m.data))}catch(_){}};
+try{const es=new EventSource('/events/stream');
+  es.onmessage=m=>{try{renderAlert(JSON.parse(m.data))}catch(_){}};}catch(_){}
+
+let seen=new Set();
 async function confirmVisit(id){try{await fetch('/api/confirm/'+id,{method:'POST'});visits();}catch(_){}}
 async function visits(){try{const r=await fetch('/api/visits');const d=await r.json();
-  document.getElementById('visits').innerHTML=d.map(v=>{
-   const cell=v.status==='confirmed'
-     ?'<span class="badge confirmedb">已放行</span>'
-     :'<button class="go" onclick="confirmVisit('+v.id+')">✅ 放行</button>';
-   const gate=v.confirmed_at?v.confirmed_at.slice(11,19)+' UTC':'—';
-   return '<tr><td>'+(v.plate||'—')+'</td><td>'+(v.company||'—')+'</td><td>'+(v.reason||'—')+
-     '</td><td>'+(v.entry_time||'—')+'</td><td>'+gate+'</td><td>'+cell+'</td></tr>';}).join('');}catch(_){}}
+  const tb=document.getElementById('visits');
+  document.getElementById('empty').style.display=d.length?'none':'block';
+  tb.innerHTML=d.map(v=>{
+   const act=v.status==='confirmed'
+     ?'<span class="pill ok">已放行 '+(v.confirmed_at?v.confirmed_at.slice(11,16):'')+'</span>'
+     :'<span class="pill wait">待核对</span>';
+   const btn=v.status==='confirmed'?'':'<button class="go" onclick="confirmVisit('+v.id+')">放行</button>';
+   const cls=seen.has(v.id)?'':'new'; seen.add(v.id);
+   return '<tr class="'+cls+'"><td class="plate">'+(v.plate||'—')+'</td><td>'+(v.company||'—')+
+     '</td><td>'+(v.reason||'—')+'</td><td>'+(v.phone||'—')+'</td><td>'+(v.name||'—')+
+     '</td><td class="muted">'+(v.entry_time||'—')+'</td><td>'+act+'</td><td>'+btn+'</td></tr>';
+  }).join('');}catch(_){}}
 visits();setInterval(visits,3000);
 </script></body></html>"""
 
 
 _VOICE_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>和 AI 门卫对话 · Voice Agent</title>
+<title>访客登记 · AI 门卫</title>
 <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 <style>
-  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,'PingFang SC',sans-serif;background:#f4f1ea;
-    color:#2b2b2b;display:flex;min-height:100vh;align-items:center;justify-content:center}
-  .card{background:#fff;border-radius:20px;box-shadow:0 10px 40px rgba(0,0,0,.08);padding:36px 40px;
-    text-align:center;max-width:420px;width:90%}
-  h1{font-size:20px;margin:0 0 6px} p{color:#777;margin:6px 0 20px;line-height:1.6;font-size:14px}
-  button{font-size:16px;padding:14px 28px;border:0;border-radius:999px;background:#c9742e;color:#fff;
-    cursor:pointer;box-shadow:0 6px 16px rgba(201,116,46,.35)} button:disabled{opacity:.5;cursor:default}
-  .status{margin-top:18px;font-size:14px;color:#555;min-height:22px}
-  .mic{width:64px;height:64px;border-radius:50%;background:#39b54a;margin:0 auto 16px;display:none;
-    box-shadow:0 0 0 0 rgba(57,181,74,.6);animation:p 1.5s infinite} @keyframes p{to{box-shadow:0 0 0 16px rgba(57,181,74,0)}}
-  a{color:#c9742e}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,'Segoe UI',Roboto,'PingFang SC',sans-serif;
+    min-height:100vh;display:flex;align-items:center;justify-content:center;color:#fff;
+    background:linear-gradient(160deg,#2b6a5a 0%,#1f4f6b 55%,#243b66 100%)}
+  .card{width:90%;max-width:380px;text-align:center;padding:8px}
+  .logo{font-size:30px} h1{font-size:22px;margin:6px 0 2px;font-weight:700}
+  .sub{color:rgba(255,255,255,.75);font-size:14px;line-height:1.6;margin:8px 0 30px}
+  .orb{width:120px;height:120px;border-radius:50%;margin:0 auto 26px;position:relative;
+    background:radial-gradient(circle at 50% 40%,#7fe9c4,#1ea672);display:flex;
+    align-items:center;justify-content:center;font-size:42px;box-shadow:0 12px 40px rgba(30,166,114,.5)}
+  .orb.idle{background:radial-gradient(circle at 50% 40%,#cfe0e6,#8aa1ad);box-shadow:none}
+  .orb.live::after{content:'';position:absolute;inset:0;border-radius:50%;
+    box-shadow:0 0 0 0 rgba(127,233,196,.6);animation:pulse 1.6s infinite}
+  @keyframes pulse{to{box-shadow:0 0 0 26px rgba(127,233,196,0)}}
+  button{font-size:17px;padding:16px 30px;border:0;border-radius:999px;cursor:pointer;font-weight:600;
+    background:#fff;color:#1f4f6b;box-shadow:0 8px 24px rgba(0,0,0,.18)} button:disabled{opacity:.6}
+  .hang{background:#e25b5b;color:#fff;margin-left:10px}
+  .status{margin-top:22px;font-size:15px;min-height:24px;color:rgba(255,255,255,.92)}
+  a{color:#9fe7cf}
 </style></head><body>
 <div class="card">
-  <div class="mic" id="mic"></div>
-  <h1>🐳 和 AI 门卫对话</h1>
-  <p>点下面按钮、允许麦克风权限，就能直接对着电脑说话登记——无需电话。<br>
-     说完打开 <a href="/dashboard" target="_blank">后台 Dashboard</a> 看实时效果。</p>
-  <button id="btn">📞 接入门卫</button>
-  <button id="hang" style="display:none;background:#c62828;margin-left:8px">挂断</button>
+  <div class="logo">🐳</div>
+  <h1>访客登记</h1>
+  <div class="sub">点下方按钮，对着麦克风说话，<br>AI 门卫帮您登记入园 · 全程几句话</div>
+  <div class="orb idle" id="mic">🎙️</div>
+  <button id="btn">开始对话</button>
+  <button id="hang" class="hang" style="display:none">挂断</button>
   <div class="status" id="status"></div>
 </div>
 <script>
 const btn=document.getElementById('btn'),hang=document.getElementById('hang'),
       st=document.getElementById('status'),mic=document.getElementById('mic');
 let room;
-function reset(){mic.style.display='none';hang.style.display='none';btn.disabled=false;}
+function reset(){mic.className='orb idle';mic.textContent='🎙️';hang.style.display='none';btn.disabled=false;btn.style.display='inline-block';}
 btn.onclick=async()=>{
   btn.disabled=true; st.textContent='正在接入…';
   try{
@@ -328,8 +353,9 @@ btn.onclick=async()=>{
     room.on(LivekitClient.RoomEvent.Disconnected,()=>{st.textContent='已挂断';reset();});
     await room.connect(d.url,d.token);
     await room.localParticipant.setMicrophoneEnabled(true);
-    mic.style.display='block'; hang.style.display='inline-block';
-    st.innerHTML='✅ 已接入，门卫会先开口——请直接说话。';
+    mic.className='orb live'; mic.textContent='🔊';
+    btn.style.display='none'; hang.style.display='inline-block';
+    st.innerHTML='已接通，门卫会先开口——请直接说话';
   }catch(e){st.textContent='接入失败：'+e.message+'（确认 .env 里 LiveKit 配置 + agent worker 已启动）';btn.disabled=false;}
 };
 hang.onclick=async()=>{try{await room.disconnect();}catch(_){}st.textContent='已挂断';reset();};

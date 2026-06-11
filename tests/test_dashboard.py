@@ -61,7 +61,8 @@ def test_voice_page_and_token(temp_db, monkeypatch):
     importlib.reload(srv)
     client = TestClient(srv.app)
 
-    assert "和 AI 门卫对话" in client.get("/voice").text
+    voice = client.get("/voice").text
+    assert "访客登记" in voice and "AI 门卫" in voice
     assert "扫码登记访客" in client.get("/qr").text
 
     tok = client.get("/token", params={"room": "voice-demo", "identity": "v1"}).json()

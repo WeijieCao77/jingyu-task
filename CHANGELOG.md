@@ -106,6 +106,16 @@
   - **`DEPLOY.md`**：全云端方案（Railway/Fly + LiveKit Cloud + Neon + OpenAI），手机直连 LiveKit Cloud、容器只开 HTTP、无需 Tailscale/UDP；含账号清单、Railway 步骤、Fly 步骤、可交给 cowork/云端 CC 的部署 prompt、验收清单。
 - **计划变更**：明确两条远程路线分工——**DEPLOY.md=全云端（无家用电脑）**；**REMOTE_ACCESS.md=远程操作家里电脑**。Serverless 边界落地为"web+agent 常驻云主机 + LiveKit Cloud + Neon"。
 
+### v0.16 — 回到产品：AI 确认层 / 提速 / 门卫界面简化 / 美化 / 微信预备
+> 来源：用户真机测试发现的产品问题。
+- **AI 确认层（修语音识别错号码）**：prompt 要求在 complete 前**复述车牌+手机号让访客确认**（车牌逐位、手机号分组念），错了就改再复述。号码听错也能被访客当场纠正。
+- **提速**：开启 LiveKit `preemptive_generation`（抢先生成）+ 调低 VAD 端点静音(0.4s) + `min_endpointing_delay`(0.4s)；均 env 可调（`PREEMPTIVE_GENERATION`/`VAD_MIN_SILENCE`/`MIN_ENDPOINTING_DELAY`）。
+- **门卫界面简化**：Dashboard 砍掉实时对话流，只留**访客信息表格 + 放行按钮**（车牌/单位/事由/手机/姓名/时间/状态）；顶部只在"有来电/需转人工"时弹一条带「介入」按钮的提醒。完整对话仍存库（`call_events`），只是不再一直显示给门卫。
+- **UI 美化**：访客 `/voice` 重做（渐变背景、动效语音球、友好文案、接通/挂断状态）；门卫页改清爽卡片表格。
+- **微信预备方案 `WECHAT_PLAN.md`**：3 天内落地路径——方案 A 群机器人+链接放行（代码已具备，填 env 即用）/ 方案 B 自建应用模板卡片按钮回调。不急着实现，文档先行。
+- 测试 39 passed（更新 voice 文案断言）。
+- **计划变更**：从"基础设施/远程访问"切回"产品打磨"；号码准确性用 AI 确认层兜底而非强求模型。
+
 ---
 
 ## 待办 / 下一步候选（计划池）

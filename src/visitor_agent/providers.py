@@ -72,10 +72,11 @@ def build_tts(cfg: Settings):
     raise ValueError(f"Unsupported TTS_PROVIDER: {cfg.tts_provider}")
 
 
-def build_vad():
+def build_vad(cfg: Settings | None = None):
     from livekit.plugins import silero
 
-    return silero.VAD.load()
+    min_silence = cfg.vad_min_silence if cfg else 0.4
+    return silero.VAD.load(min_silence_duration=min_silence)
 
 
 def build_turn_detection():

@@ -148,8 +148,12 @@ async def entrypoint(ctx: JobContext) -> None:
         stt=build_stt(cfg),
         llm=build_llm(cfg),
         tts=build_tts(cfg),
-        vad=build_vad(),
+        vad=build_vad(cfg),
         turn_detection=turn_detection,
+        # Latency: start generating before the caller fully finishes + reply
+        # sooner after they stop. Tunable via env (see config.py).
+        preemptive_generation=cfg.preemptive_generation,
+        min_endpointing_delay=cfg.min_endpointing_delay,
     )
 
     # Stream the live transcript to the dashboard (final turns only).
