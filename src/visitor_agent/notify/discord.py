@@ -11,23 +11,25 @@ import logging
 
 import httpx
 
-from .common import is_returning, title, visitor_rows
+from .common import is_returning, status_lines, title, visitor_rows
 
 logger = logging.getLogger("visitor_agent.discord")
 
 
+def _color(visit: dict) -> int:
+    if visit.get("access_status") == "blacklist":
+        return 0xD9352B  # red — banned
+    if visit.get("access_status") == "whitelist" or is_returning(visit):
+        return 0x39B54A  # green — pre-approved / returning
+    return 0xC9742E
+
+
 def build_payload(visit: dict, confirm_url: str) -> dict:
-    desc = "\n".join(f"**{k}**：{v}" for k, v in visitor_rows(visit))
+    flags = "\n".join(status_lines(visit))
+    desc = (flags + "\n\n") if flags else ""
+    desc += "\n".join(f"**{k}**：{v}" for k, v in visitor_rows(visit))
     desc += f"\n\n[✅ 确认放行]({confirm_url})"
-    return {
-        "embeds": [
-            {
-                "title": title(visit),
-                "description": desc,
-                "color": 0xC9742E if not is_returning(visit) else 0x39B54A,
-            }
-        ]
-    }
+    return {"embeds": [{"title": title(visit), "description": desc, "color": _color(visit)}]}
 
 
 async def send(webhook_url: str, visit: dict, confirm_url: str, timeout: float = 5.0) -> bool:

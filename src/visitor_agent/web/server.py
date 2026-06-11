@@ -241,6 +241,8 @@ _DASHBOARD_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
   .pill{font-size:12px;padding:4px 12px;border-radius:999px;font-weight:600}
   .pill.ok{background:var(--greenbg);color:var(--green)}
   .pill.wait{background:var(--amberbg);color:var(--amber)}
+  .pill.bad{background:#fdecec;color:#c62828}
+  .pill.vip{background:var(--greenbg);color:var(--green)}
   .go{border:0;border-radius:10px;background:var(--green);color:#fff;padding:9px 18px;
     font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 3px 10px rgba(30,166,114,.3)}
   .go:active{transform:translateY(1px)}
@@ -291,8 +293,10 @@ async function visits(){try{const r=await fetch('/api/visits');const d=await r.j
      ?'<span class="pill ok">已放行 '+(v.confirmed_at?v.confirmed_at.slice(11,16):'')+'</span>'
      :'<span class="pill wait">待核对</span>';
    const btn=v.status==='confirmed'?'':'<button class="go" onclick="confirmVisit('+v.id+')">放行</button>';
+   const flag=v.access_status==='blacklist'?'<span class="pill bad">⛔黑名单</span> ':
+              v.access_status==='whitelist'?'<span class="pill vip">✅白名单</span> ':'';
    const cls=seen.has(v.id)?'':'new'; seen.add(v.id);
-   return '<tr class="'+cls+'"><td class="plate">'+(v.plate||'—')+'</td><td>'+(v.company||'—')+
+   return '<tr class="'+cls+'"><td class="plate">'+flag+(v.plate||'—')+'</td><td>'+(v.company||'—')+
      '</td><td>'+(v.reason||'—')+'</td><td>'+(v.phone||'—')+'</td><td>'+(v.name||'—')+
      '</td><td class="muted">'+(v.entry_time||'—')+'</td><td>'+act+'</td><td>'+btn+'</td></tr>';
   }).join('');}catch(_){}}

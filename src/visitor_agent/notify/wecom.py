@@ -13,6 +13,8 @@ import logging
 
 import httpx
 
+from .common import status_lines, title
+
 logger = logging.getLogger("visitor_agent.wecom")
 
 
@@ -23,11 +25,17 @@ def build_markdown(visit: dict, confirm_url: str) -> str:
     reason = visit.get("reason") or "—"
     phone = visit.get("phone") or "—"
     entry_time = visit.get("entry_time") or "—"
-    returning = "（回访车辆）" if visit.get("returning") else ""
     name_line = f"> **姓名**：{visit['name']}\n" if visit.get("name") else ""
 
+    # Highlight lines (blacklist/whitelist/returning) — red for a blacklist hit.
+    flags = ""
+    for line in status_lines(visit):
+        color = "warning" if line.startswith("⛔") else "info"
+        flags += f'> <font color="{color}">{line}</font>\n'
+
     return (
-        f"## 🚗 访客登记 {returning}\n"
+        f"## {title(visit)}\n"
+        f"{flags}"
         f"> **车牌号**：<font color=\"info\">{plate}</font>\n"
         f"> **来访单位**：{company}\n"
         f"> **来访事由**：{reason}\n"

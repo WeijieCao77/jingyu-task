@@ -78,3 +78,52 @@ def test_name_included_when_present():
     assert "张师傅" in discord.build_payload(v, "https://x/c?token=t")["embeds"][0]["description"]
     assert "张师傅" in telegram.build_payload(v, "https://x/c?token=t", "1")["text"]
     assert "张师傅" in build_markdown(v, "https://x/c?token=t")
+
+
+# ----- returning + access flags surface on every channel -----
+
+def test_returning_summary_on_cards():
+    from visitor_agent.notify.wecom import build_markdown
+
+    v = dict(_visit(), returning=True, returning_summary="张师傅 · 手机匹配·本人 · 第3次 · 上次蓝色鲸鱼／送货")
+    assert "第3次" in telegram.build_text(v)
+    assert "第3次" in discord.build_payload(v, "https://x/c?token=t")["embeds"][0]["description"]
+    assert "第3次" in build_markdown(v, "https://x/c?token=t")
+
+
+def test_blacklist_flag_on_cards():
+    from visitor_agent.notify.common import title
+    from visitor_agent.notify.wecom import build_markdown
+
+    v = dict(_visit(), access_status="blacklist", access_summary="⛔ 黑名单 · 欠费 · 按车牌匹配")
+    assert "黑名单" in title(v)
+    assert "黑名单" in telegram.build_text(v)
+    assert "黑名单" in build_markdown(v, "https://x/c?token=t")
+    assert discord.build_payload(v, "https://x/c?token=t")["embeds"][0]["color"] == 0xD9352B
+
+
+def test_whitelist_flag_on_cards():
+    v = dict(_visit(), access_status="whitelist", access_summary="✅ 白名单 · 王总 · VIP · 按车牌匹配")
+    assert "白名单" in telegram.build_payload(v, "https://x/c?token=t", "1")["text"]
+    assert "白名单" in discord.build_payload(v, "https://x/c?token=t")["embeds"][0]["title"]
+
+
+# ----- Telegram localhost button degradation (①) -----
+
+def test_telegram_localhost_url_drops_button_keeps_link():
+    p = telegram.build_payload(_visit(), "http://localhost:8080/confirm?token=t", "1")
+    assert "reply_markup" not in p              # localhost button would fail the whole send
+    assert "localhost:8080/confirm?token=t" in p["text"]  # link still reachable in body
+
+
+def test_telegram_public_url_has_button():
+    p = telegram.build_payload(_visit(), "http://100.67.103.51:8080/confirm?token=t", "1")
+    assert p["reply_markup"]["inline_keyboard"][0][0]["url"].startswith("http://100.67.103.51")
+
+
+def test_button_safe_url():
+    assert telegram.button_safe_url("https://x.test/c") is True
+    assert telegram.button_safe_url("http://100.67.103.51:8080/c") is True
+    assert telegram.button_safe_url("http://localhost:8080/c") is False
+    assert telegram.button_safe_url("http://127.0.0.1/c") is False
+    assert telegram.button_safe_url("") is False
