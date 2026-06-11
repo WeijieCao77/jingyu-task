@@ -4,12 +4,12 @@
 本文给"明天最快能在手机上收到消息"的设置。
 
 ## 渠道路线图（已定）
-1. **初步 / 当前 demo → Telegram**：5 分钟、即时到手机、带「放行」按钮、海外可用。先用它把流程跑通。
-2. **备用 → 企业微信群机器人 / Discord**：webhook + 链接放行，已具备。
-3. **未来 / 国内生产落地 → 企业微信（自建应用）/ 微信生态**：原生按钮回调、合规、国内可用。
-   **demo 变产品、在国内落地时，通知最终要落到国内软件**——Telegram 只是过渡。升级路径见 `WECHAT_PLAN.md`。
+1. **同步推进（当前）→ Telegram + 企业微信群机器人**：两者都只需手机号、不要公司/营业执照、当天可通。两边可**同时推**。
+2. **备用 → Discord**：webhook，已具备。
+3. **未来 / 国内生产落地 → 企业微信自建应用 / 微信生态**：原生按钮回调、合规、国内可用（升级路径见 `WECHAT_PLAN.md`）。
 
-> 通知是可插拔适配器（`notify/dispatch.py`），从 Telegram 换到企业微信只改 `NOTIFY_CHANNEL` + 配置，不动主流程。
+> 通知是可插拔适配器（`notify/dispatch.py`）。`NOTIFY_CHANNEL` **支持多渠道（逗号分隔）**，
+> 例如 `NOTIFY_CHANNEL=telegram,wecom` 会**同时推到 Telegram 和企业微信**。换渠道不动主流程。
 
 > ⚠️ 消息里那个「✅ 确认放行」按钮/链接要能点开生效，需要后端**公网可达**（`PUBLIC_BASE_URL` 指向公网）。
 > 本地 demo：用 cloudflared/ngrok 隧道映射 8080，把得到的 https 填进 `PUBLIC_BASE_URL`；或直接在电脑后台 Dashboard 点放行。
@@ -66,12 +66,34 @@ DISCORD_WEBHOOK_URL=<频道→整合→Webhooks→New→Copy URL>
 
 ---
 
+## 同时推两边（Telegram + 企业微信，同步推进）
+配齐两边的密钥后，把渠道写成逗号分隔即可**一条登记同时推到 Telegram 和企微群**：
+```
+NOTIFY_CHANNEL=telegram,wecom
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+WECOM_WEBHOOK_URL=...
+```
+
 ## 都不配：后台点放行（默认，零账号）
 `NOTIFY_CHANNEL=none` → 保安在电脑 `/dashboard` 看到访客记录、点「放行」。手机收不到主动推送，但无需任何账号。
 
 ---
 
+## 交给本地 Claude Code 的设置 Prompt（配好并自测，不用打电话）
+```
+帮我把保安通知配好并自测，让我手机能收到访客卡片。我想同步推进 Telegram 和企业微信。
+1. Telegram：我已用 @BotFather 建 bot；问我要 TELEGRAM_BOT_TOKEN；并告诉我怎么取 chat id
+   （让我先给 bot 发一句话，然后你帮我请求 https://api.telegram.org/bot<token>/getUpdates 解析出 chat id）。
+2. 企业微信（可选，我若已建群机器人就配）：问我要 WECOM_WEBHOOK_URL。
+3. 写 .env：NOTIFY_CHANNEL=telegram,wecom（只配了一个就只写那一个）；填上对应密钥；
+   PUBLIC_BASE_URL 暂填 http://localhost:8080（要在手机点放行链接时再换公网隧道）。
+4. 自测（不用打电话）：PYTHONPATH=src python -m visitor_agent.sim.run_text --scenario scenarios/songhuo.json --live
+   确认我手机的 Telegram（和/或企微群）收到了访客卡片。把结果告诉我。
+报错先自查修复；最后告诉我两边各收到没有。
+```
+
 ## 明天 demo 建议
-- **手机收消息**：用 **方案 1 Telegram**（最快、最稳到手机）。
-- **要在手机上点放行**：再加一个 cloudflared 隧道把 8080 暴露，`PUBLIC_BASE_URL` 填隧道地址。
-- **不想折腾链接可达**：消息照收（Telegram），放行就在电脑后台 Dashboard 点——一样完成闭环。
+- **最快**：先把 **Telegram** 配好（手机即时收到）；**企业微信**有空用手机号建一个群机器人，`NOTIFY_CHANNEL=telegram,wecom` 两边一起推。
+- **要在手机上点放行**：加一个 cloudflared 隧道把 8080 暴露、`PUBLIC_BASE_URL` 填隧道地址。
+- **不想折腾链接可达**：消息照收，放行在电脑后台 Dashboard 点——一样完成闭环。
