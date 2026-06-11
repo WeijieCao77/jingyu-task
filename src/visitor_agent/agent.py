@@ -149,6 +149,7 @@ async def entrypoint(ctx: JobContext) -> None:
     sink = _make_event_sink(call_id)
     sink("call_started", None, f"来电接入（{call_id}）", None)
 
+    from .access import make_access_checker
     from .roster import make_matcher
 
     reg = RegistrationSession(
@@ -157,6 +158,7 @@ async def entrypoint(ctx: JobContext) -> None:
         tz=cfg.timezone,
         event_sink=sink,
         roster_match=make_matcher(cfg.roster_path, cfg.roster_threshold),
+        access_check=make_access_checker(cfg.access_list_path),
     )
     agent = VisitorAgent(reg)
 

@@ -53,7 +53,27 @@ def init_db(database_url: str | None = None) -> Engine:
 
     _Session = sessionmaker(bind=_engine, expire_on_commit=False, future=True)
     Base.metadata.create_all(_engine)
+    _ensure_columns(_engine)
     return _engine
+
+
+# New nullable columns added after a DB may already exist. create_all() never
+# ALTERs an existing table, so a demo SQLite file (or a live Postgres) would
+# otherwise raise "no such column". Add them additively, idempotently.
+_ADDED_COLUMNS = {"access_status": "VARCHAR(16)"}
+
+
+def _ensure_columns(engine: Engine) -> None:
+    from sqlalchemy import inspect, text
+
+    insp = inspect(engine)
+    if "visits" not in insp.get_table_names():
+        return
+    existing = {c["name"] for c in insp.get_columns("visits")}
+    with engine.begin() as conn:
+        for col, ddl in _ADDED_COLUMNS.items():
+            if col not in existing:
+                conn.execute(text(f"ALTER TABLE visits ADD COLUMN {col} {ddl}"))
 
 
 def _session() -> Session:
@@ -73,6 +93,7 @@ def create_visit(info: dict, confirm_token: str, status: str = "pending") -> Vis
             name=info.get("name"),
             entry_time=info.get("entry_time"),
             status=status,
+            access_status=info.get("access_status"),
             confirm_token=confirm_token,
         )
         s.add(visit)

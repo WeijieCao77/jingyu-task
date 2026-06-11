@@ -57,6 +57,57 @@ def test_returning_visitor_by_phone_recognizes_person():
     assert reg.info.name == "张师傅"
 
 
+def test_blacklist_flags_payload_and_emits_alert():
+    events = []
+    reg = RegistrationSession(
+        notifier=MockNotifier(),
+        access_check=lambda plate, phone: (
+            {"status": "blacklist", "matched_on": "plate", "name": None, "reason": "欠费"}
+            if plate == "沪A00000" else None
+        ),
+        event_sink=lambda kind, role, text, payload: events.append((kind, text)),
+    )
+    reg.record(plate="沪A00000", company="蓝色鲸鱼", reason="送货", phone="13800138000")
+    assert any(k == "access_alert" for k, _ in events)  # guard alerted
+    pushed = asyncio.run(_complete_and_capture(reg))
+    assert pushed["access_status"] == "blacklist"
+    assert "黑名单" in pushed["access_summary"]
+
+
+def test_whitelist_flags_payload():
+    reg = RegistrationSession(
+        notifier=MockNotifier(),
+        access_check=lambda plate, phone: (
+            {"status": "whitelist", "matched_on": "phone", "name": "李经理", "reason": "VIP"}
+            if phone == "13800138000" else None
+        ),
+    )
+    reg.record(plate="沪A1", company="蓝色鲸鱼", reason="送货", phone="13800138000")
+    pushed = asyncio.run(_complete_and_capture(reg))
+    assert pushed["access_status"] == "whitelist"
+    assert "白名单" in pushed["access_summary"] and "李经理" in pushed["access_summary"]
+
+
+def test_returning_summary_in_payload():
+    reg = RegistrationSession(
+        notifier=MockNotifier(),
+        lookup_returning=lambda plate, phone: (
+            {"match_type": "phone", "visit_count": 2, "name": "张师傅",
+             "last_company": "蓝色鲸鱼", "last_reason": "送货", "last_time": None}
+            if phone == "13800138000" else None
+        ),
+    )
+    reg.record(plate="沪A1", company="蓝色鲸鱼", reason="送货", phone="13800138000")
+    pushed = asyncio.run(_complete_and_capture(reg))
+    assert pushed["returning"] is True
+    assert "第3次" in pushed["returning_summary"] and "张师傅" in pushed["returning_summary"]
+
+
+async def _complete_and_capture(reg) -> dict:
+    await reg.complete()
+    return reg.notifier.calls[-1]
+
+
 def test_name_is_optional_not_required():
     reg = RegistrationSession(notifier=MockNotifier())
     reg.record(plate="沪A1", company="蓝色鲸鱼", reason="送货", phone="13800138000")

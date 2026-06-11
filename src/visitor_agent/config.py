@@ -84,6 +84,13 @@ class Settings(BaseSettings):
     roster_path: str = ""
     roster_threshold: float = 0.55
 
+    # ---- Access control: blacklist / whitelist (车牌/手机 黑白名单) ----
+    # 留空=关闭。指向 JSON 文件即开启（见 access.example.json）。
+    # 黑名单=告警+绝不自动放行；白名单=快速通道（默认仍需保安确认）。
+    access_list_path: str = ""
+    # 白名单是否自动放行（跳过保安、直接抬杆）。默认 False=仍由保安点放行，只是卡片标注。
+    auto_pass_whitelist: bool = False
+
     # ---- Misc ----
     timezone: str = "Asia/Shanghai"
 

@@ -38,6 +38,7 @@ class RegistrationSession:
         tz: str = "Asia/Shanghai",
         event_sink: EventSink | None = None,
         roster_match=None,  # Callable[[str|None], tuple[str|None, float]] | None
+        access_check=None,  # Callable[[str|None, str|None], dict|None] | None
     ) -> None:
         self.info = VisitorInfo()
         self.notifier = notifier
@@ -45,9 +46,11 @@ class RegistrationSession:
         self.tz = tz
         self.event_sink = event_sink
         self.roster_match = roster_match
+        self.access_check = access_check
         self.completed = False
         self.escalated = False
         self.returning_match: dict | None = None
+        self.access_match: dict | None = None
 
     @staticmethod
     def _returning_hint(prof: dict) -> str:
@@ -65,6 +68,31 @@ class RegistrationSession:
             "请用一句话直接确认是否与上次相同（如『还是和上次一样来…吧？』），不要从头重问；"
             "若对方说不一样，再据实更新。"
         )
+
+    @staticmethod
+    def _returning_summary(prof: dict) -> str:
+        """One-line returning-visitor summary for the guard's notification card."""
+        basis = {
+            "plate+phone": "车牌+手机均匹配",
+            "phone": "手机匹配·本人",
+            "plate": "车牌匹配·同车",
+        }.get(prof.get("match_type", ""), "历史匹配")
+        who = prof.get("name") or "老访客"
+        count = prof.get("visit_count") or 0
+        nth = f"第{count + 1}次" if count else ""
+        last = f"上次{prof.get('last_company') or '—'}／{prof.get('last_reason') or '—'}"
+        parts = [who, basis] + ([nth] if nth else []) + [last]
+        return " · ".join(parts)
+
+    @staticmethod
+    def _access_summary(m: dict) -> str:
+        """One-line blacklist/whitelist summary for the card."""
+        label = "⛔ 黑名单" if m.get("status") == "blacklist" else "✅ 白名单"
+        by = "车牌" if m.get("matched_on") == "plate" else "手机"
+        parts = [label] + ([m["name"]] if m.get("name") else []) + (
+            [m["reason"]] if m.get("reason") else []
+        ) + [f"按{by}匹配"]
+        return " · ".join(parts)
 
     def _emit(self, kind: str, text: str | None = None, payload: dict | None = None) -> None:
         if self.event_sink:
@@ -116,6 +144,21 @@ class RegistrationSession:
                     "请向访客确认是不是找这家。"
                 )
 
+        # Blacklist / whitelist check on any newly-learned identifier. Kept out
+        # of the AI-facing hint on purpose: the gatekeeper keeps registering
+        # normally (no confrontation at the gate); the guard is the one alerted
+        # via the card + dashboard. Blacklist can upgrade a prior whitelist hit.
+        if self.access_check and newly_identified:
+            m = self.access_check(self.info.plate, self.info.phone)
+            if m and (self.access_match is None or m.get("status") == "blacklist"):
+                self.access_match = m
+                if m.get("status") == "blacklist":
+                    self._emit(
+                        "access_alert",
+                        text=f"⛔ 黑名单访客：{m.get('reason') or '—'}",
+                        payload={**self.info.to_dict(), **m},
+                    )
+
         recorded = self.info.human_summary() or "（暂无）"
         missing = self.info.missing_labels_zh()
         missing_str = "、".join(missing) if missing else "无，信息已齐"
@@ -144,6 +187,12 @@ class RegistrationSession:
         self.info.stamp_entry_time(self.tz)
         payload = self.info.to_dict()
         payload["returning"] = bool(self.returning_match)
+        if self.returning_match:
+            payload["returning_summary"] = self._returning_summary(self.returning_match)
+        if self.access_match:
+            payload["access_status"] = self.access_match.get("status")
+            payload["access_reason"] = self.access_match.get("reason")
+            payload["access_summary"] = self._access_summary(self.access_match)
         confirm_url = await self.notifier.notify(payload)
         self.completed = True
         self._emit("completed", text=self.info.human_summary(), payload=payload)
@@ -184,11 +233,25 @@ class LiveNotifier:
         import secrets
 
         from .db import repo
-        from .notify import dispatch
+        from .notify import dispatch, gate
 
         token = secrets.token_urlsafe(16)
-        repo.create_visit(info, confirm_token=token, status="pending")
+        visit = repo.create_visit(info, confirm_token=token, status="pending")
         confirm_url = f"{self.s.public_base_url.rstrip('/')}/confirm?token={token}"
+
+        # Whitelist fast-track: if enabled, a pre-approved visitor is confirmed
+        # and the gate opens immediately (no guard tap). Off by default — the
+        # card still flags ✅白名单 and the guard confirms. Blacklist never auto-passes.
+        if (
+            info.get("access_status") == "whitelist"
+            and getattr(self.s, "auto_pass_whitelist", False)
+        ):
+            repo.mark_confirmed_by_id(visit.id)
+            gate.open_gate(visit_id=visit.id, plate=visit.plate)
+            cid = f"visit-{visit.id}"
+            repo.log_event(cid, "confirmed", text=f"白名单自动放行 {visit.plate or ''}")
+            repo.log_event(cid, "gate", text="已发送抬杆指令 (白名单自动)")
+
         await dispatch.push(self.s, info, confirm_url)
         return confirm_url
 
