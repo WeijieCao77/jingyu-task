@@ -4,6 +4,11 @@
 
 ---
 
+## 🔄 新开 Claude session？先读这一篇
+> **[SESSION_HANDOFF.md](SESSION_HANDOFF.md)** —— 交接文档：项目是什么、架构、代码地图、今天已验证状态、分支/PR、协作节奏、下一步候选。**新 session 读它就能接着干。**
+
+---
+
 ## 🧭 想快速了解，从这三篇开始
 1. **[README.md](README.md)** —— 一页总览：架构图 + 部署 + 环境变量。
 2. **[PRODUCT_FLOW.md](PRODUCT_FLOW.md)** —— 全流程 + 访客/管理者双视角 + 产品决策点（**产品评审看这篇**）。
