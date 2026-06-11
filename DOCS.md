@@ -34,7 +34,8 @@
 | **[QR_DEMO.md](QR_DEMO.md)** | 手机扫码版 | 你/本地 CC | 路 A(LiveKit Cloud) / 路 B(同 WiFi 零账号) |
 | **[SETUP_CHECKLIST.md](SETUP_CHECKLIST.md)** | 逐步部署清单 | 你/本地 CC | 从密钥到真实电话(Twilio→LiveKit SIP)的每一步 |
 | **[SMOKE_CHECK.md](SMOKE_CHECK.md)** | 首次真跑排查 | 本地 CC/你 | 症状→原因→处置 + 验收断言 + 未验证项 |
-| **[REMOTE_ACCESS.md](REMOTE_ACCESS.md)** | 在外用手机测试/操作家里电脑 | 你/本地 CC | Tailscale 装机教程 + 给本地 CC 的 prompt（手机测语音 + SSH 驱动 Claude Code） |
+| **[DEPLOY.md](DEPLOY.md)** | 全云端部署（甩掉家里电脑） | 你/cowork | Railway/Fly + LiveKit Cloud + Neon，手机随处测；含部署 prompt |
+| **[REMOTE_ACCESS.md](REMOTE_ACCESS.md)** | 在外用手机操作家里电脑 | 你/本地 CC | VS Code Tunnel 驱动本地 Claude Code + Tailscale 测语音 |
 | **[TEST_TASKS.md](TEST_TASKS.md)** | 本地真实联调任务 | 喂给本地 Claude Code | 5 条测试 prompt，跑完回报 |
 
 ## 四、开发记录（过程留痕）

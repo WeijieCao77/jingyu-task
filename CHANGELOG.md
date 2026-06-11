@@ -99,6 +99,13 @@
   - 说明两条路可同时用（一个标签指挥 Claude Code、一个标签测语音）。
 - **计划变更**：远程访问的主线从"手机测 app"修正为"手机操作本地 Claude Code"。
 
+### v0.15 — 全云端部署（彻底甩掉家里电脑）
+- **改动**：用户要求完全不依赖本地电脑、手机随处测。加云部署产物：
+  - `Dockerfile`（容器内跑 web+agent）、`scripts/start.sh`（agent worker 后台 + web 前台）、`.dockerignore`、`fly.toml`。
+  - `web/server.py` 适配云平台端口（`$PORT`）；`requirements.txt` 加 `psycopg2-binary`（Neon Postgres 驱动）。
+  - **`DEPLOY.md`**：全云端方案（Railway/Fly + LiveKit Cloud + Neon + OpenAI），手机直连 LiveKit Cloud、容器只开 HTTP、无需 Tailscale/UDP；含账号清单、Railway 步骤、Fly 步骤、可交给 cowork/云端 CC 的部署 prompt、验收清单。
+- **计划变更**：明确两条远程路线分工——**DEPLOY.md=全云端（无家用电脑）**；**REMOTE_ACCESS.md=远程操作家里电脑**。Serverless 边界落地为"web+agent 常驻云主机 + LiveKit Cloud + Neon"。
+
 ---
 
 ## 待办 / 下一步候选（计划池）

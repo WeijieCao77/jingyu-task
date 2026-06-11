@@ -416,13 +416,17 @@ hang.onclick=async()=>{try{await rm.disconnect();}catch(_){}st.textContent='å·²æ
 
 
 def main() -> None:
+    import os
+
     import uvicorn
     from dotenv import load_dotenv
 
     load_dotenv()  # make .env values (DB, notify, Hikvision, LiveKit) visible
     get_settings.cache_clear()
     cfg = get_settings()
-    uvicorn.run(app, host="0.0.0.0", port=cfg.web_port)
+    # Cloud platforms (Railway/Render/Fly) inject the listen port via $PORT.
+    port = int(os.environ.get("PORT", cfg.web_port))
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":

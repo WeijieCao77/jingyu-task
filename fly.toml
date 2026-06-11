@@ -1,0 +1,17 @@
+# Fly.io deploy config. `fly launch --no-deploy` then set secrets and `fly deploy`.
+# (Railway works with zero config — just connect the repo + the Dockerfile.)
+app = "visitor-voice-agent"
+primary_region = "iad"          # pick one near you / near LiveKit Cloud region
+
+[build]
+
+[http_service]
+  internal_port = 8080          # web binds 8080 (its default) when $PORT is unset
+  force_https = true
+  auto_stop_machines = false    # keep the agent worker always registered
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"                # room for onnxruntime / turn-detector
