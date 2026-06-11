@@ -256,8 +256,12 @@ const feed=document.getElementById('feed'),slots=document.getElementById('slots'
 function row(e){const d=document.createElement('div');d.className='ev '+e.kind;
   const t=(e.created_at||'').slice(11,19);
   let extra='';
-  if(e.kind==='escalation'&&e.call_id){extra=' <a href="/guard_call?room='+
-    encodeURIComponent(e.call_id)+'" target="_blank" style="color:#c9742e;font-weight:700">📞 介入通话</a>';}
+  // Two ways into a live call: manager proactively (on any 来电), or after the
+  // customer/AI asked (escalation). Either shows a one-click join button.
+  if((e.kind==='escalation'||e.kind==='call_started')&&e.call_id){
+    const label=e.kind==='escalation'?'📞 介入通话':'📞 主动介入';
+    extra=' <a href="/guard_call?room='+encodeURIComponent(e.call_id)+
+      '" target="_blank" style="color:#c9742e;font-weight:700">'+label+'</a>';}
   d.innerHTML='<span class="t">'+t+'</span><b>'+(F[e.kind]||e.kind)+'</b> '+(e.text||'')+extra;
   feed.appendChild(d);feed.scrollTop=feed.scrollHeight;
   if(e.kind==='slot'&&e.payload){try{const p=JSON.parse(e.payload);
