@@ -80,7 +80,8 @@ def _notify_room_approved(room: str | None) -> None:
             finally:
                 await lkapi.aclose()
 
-        asyncio.run(_send())
+        # Bounded so a slow/unreachable LiveKit can't delay the guard's confirm.
+        asyncio.run(asyncio.wait_for(_send(), timeout=3.0))
     except Exception:  # noqa: BLE001 — visitor may have hung up; never break confirm
         pass
 

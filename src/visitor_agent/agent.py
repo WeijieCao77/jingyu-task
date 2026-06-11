@@ -207,8 +207,11 @@ async def entrypoint(ctx: JobContext) -> None:
     # tells the visitor it's done — closing the loop on the live call. Best-effort:
     # the visitor may already have hung up.
     @ctx.room.on("data_received")
-    def _on_data(packet) -> None:  # noqa: ANN001
+    def _on_data(*args) -> None:  # noqa: ANN002 — sig varies by livekit version
+        # 1.x emits a single DataPacket; older emits (data, participant, ...).
+        # args[0] is the packet/bytes either way; .data unwraps a DataPacket.
         try:
+            packet = args[0] if args else None
             raw = getattr(packet, "data", packet)
             msg = json.loads(bytes(raw).decode("utf-8"))
         except Exception:  # noqa: BLE001
