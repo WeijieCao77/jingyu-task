@@ -30,5 +30,8 @@ pydantic>=2.7
 pydantic-settings>=2.3
 python-dotenv>=1.0
 
+# --- Company roster matching (optional: better homophone matching) ---
+pypinyin>=0.51
+
 # --- Dev / test ---
 pytest>=8.0

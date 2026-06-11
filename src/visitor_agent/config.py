@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     hikvision_password: str = ""
     hikvision_channel: int = 1
 
+    # ---- Company roster matching (来访单位 自动纠正到园区名单) ----
+    # 留空=关闭（不影响基础 demo）。指向一个 JSON 名单文件即开启。
+    roster_path: str = ""
+    roster_threshold: float = 0.55
+
     # ---- Misc ----
     timezone: str = "Asia/Shanghai"
 

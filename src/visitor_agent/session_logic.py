@@ -37,12 +37,14 @@ class RegistrationSession:
         lookup_returning: LookupReturning | None = None,
         tz: str = "Asia/Shanghai",
         event_sink: EventSink | None = None,
+        roster_match=None,  # Callable[[str|None], tuple[str|None, float]] | None
     ) -> None:
         self.info = VisitorInfo()
         self.notifier = notifier
         self.lookup_returning = lookup_returning
         self.tz = tz
         self.event_sink = event_sink
+        self.roster_match = roster_match
         self.completed = False
         self.escalated = False
         self.returning_match: dict | None = None
@@ -102,6 +104,17 @@ class RegistrationSession:
                 if not self.info.reason and prof.get("last_reason"):
                     self.info.reason = prof["last_reason"]
                 hint = self._returning_hint(prof)
+
+        # Snap the company to the park roster (corrects mis-heard names).
+        if company and self.roster_match and self.info.company:
+            official, score = self.roster_match(self.info.company)
+            if official and official != self.info.company:
+                orig = self.info.company
+                self.info.company = official
+                hint += (
+                    f" 【单位已匹配名单】把'{orig}'匹配到'{official}'，"
+                    "请向访客确认是不是找这家。"
+                )
 
         recorded = self.info.human_summary() or "（暂无）"
         missing = self.info.missing_labels_zh()
