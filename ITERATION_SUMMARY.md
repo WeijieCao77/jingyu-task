@@ -57,6 +57,14 @@
 | 24 | 模型最终客户定，要能随时换任意模型 | `LLM_BASE_URL` 接任意 OpenAI 兼容端点 | ✅ | `MODELS.md` |
 | 25 | Telegram 合进主分支、企微后续推进 | PR #2 已合并入 dev；企微代码在、默认关 | ✅ | dev |
 | 26 | 记录好所有迭代/需求并总结成文档 | `CHANGELOG.md` 补全 + 本 `ITERATION_SUMMARY.md` | ✅ | 本文 |
+| 27 | realtime 提速要和公司名单**同时可用**（FR-1） | realtime 增量手动并入 dev，不回退 roster/base_url；两模式都注入 roster/access | ✅ | dev `agent.py` |
+| 28 | realtime 接入即崩（P0-4 `say()`） | `_speak()`：realtime=`generate_reply`/pipeline=`say`；开场白+让位都走它 | ✅ | `agent.py` |
+| 29 | 放行后 AI 要语音通知访客"已放行/请进"（FR-2） | web→LiveKit 数据消息→agent `_speak`；`visits.room`；best-effort | ✅⏳ | `web/server.py`+`agent.py` |
+| 30 | 通知加"老访客/黑白名单"信息（NEW-1） | `common.status_lines()` 高亮行 + 后台 ⛔/✅ 徽标，三渠道统一 | ✅ | `notify/*` |
+| 31 | **黑白名单功能**（NEW-2） | `access.py` 车牌/手机精确匹配，黑名单优先；白名单可选自动放行；默认关 | ✅⏳ | `access.py` |
+| 32 | ① Telegram localhost 按钮让整条消息发不出 | 不带按钮+链接进正文+失败降级纯文本；文档注明 | ✅ | `notify/telegram.py` |
+| 33 | ⑥ `/voice` 自动播放被拦"没声音"且无提示 | 「点击启用声音」兜底按钮 | ✅⏳ | `web/server.py` |
+| 34 | ② 有 .env 时 `test_token_requires_config` 误失败 | 禁用该用例 `.env` 读取；`/token` 未配置=400 前置 | ✅ | `tests/`+`web/server.py` |
 
 ---
 
@@ -65,23 +73,25 @@ v0.1 骨架 → v0.2 Dashboard → v0.3 浏览器/扫码/通知可插拔 → v0.
 v0.6 存储+回访画像 → v0.7 常客+开闸时间 → v0.8 审查/生产就绪 → v0.9 框架调研+一页README →
 v0.10 文档归档 → v0.11 转人工 → v0.12 远程访问 → v0.13 跨平台(Win ARM64)修复 → v0.14 远程纠偏 →
 v0.15 全云端部署 → v0.16 产品打磨(确认层/提速/简化/美化) → **v0.17 Telegram+企微多渠道(已合并)** →
-**v0.18 公司名单匹配(分支)** → **v0.19 语音架构 A/B：pipeline→gpt-realtime(分支)** → **v0.20 模型可换**。
+**v0.18 公司名单匹配(分支)** → **v0.19 语音架构 A/B：pipeline→gpt-realtime(分支)** → **v0.20 模型可换** →
+**v0.21 名单合主线** → **v0.22 采纳真机反馈：realtime 合主线 + 黑白名单 + 通知增强(老访客/名单) + FR-2 放行播报 + 多项修复**。
 
 ## 四、分支 / PR 状态
 | 分支 | 状态 | 内容 |
 |---|---|---|
-| `claude/voice-agent-takehome-qzjbd2`(dev) | 主线 | 全部已合并能力 + Telegram + 模型可换 |
+| `claude/voice-agent-takehome-qzjbd2`(dev) | 主线 (PR #1) | 全部已合并能力 + Telegram + 模型可换 + **realtime + 黑白名单 + 通知增强 + FR-2** |
 | `feature/wechat-push` (PR #2) | **已合并** | Telegram/企微多渠道 |
-| `feature/data-matching` (PR #3) | **已合并** | 公司名单匹配（默认关）；待用户给模拟名单测一轮 |
-| `feature/realtime-voice` | 开着(PR 待建) | `VOICE_MODE=realtime` 提速 A/B——待你真机验证 |
+| `feature/data-matching` (PR #3) | **已合并** | 公司名单匹配（默认关） |
+| `feature/realtime-voice` | **已并入 dev(v0.22)** | `VOICE_MODE` 增量手动并入主线，roster/base_url 未回退；分支本身可弃 |
 
 ## 五、待办 / 计划池（详见 CHANGELOG 末尾）
-真机电话+25秒计时 · 中文音色 A/B · TEN/Pipecat 架构对照 · 企微自建应用按钮回调 · Serverless 样例 · 海康真实抬杆 ·
-realtime 真机验证后定是否设为默认。
+真机电话+25秒计时 · 中文音色 A/B · TEN/Pipecat 架构对照 · 企微自建应用按钮回调(方案B) · Serverless 样例 · 海康真实抬杆 ·
+客户定默认语音架构(pipeline/realtime) · 用户给真实黑白名单/公司名单调一轮。
 
 ## 六、需要你拍板/检查的
-- 是否合并 `feature/data-matching`（公司名单匹配）与 `feature/realtime-voice`（提速）。
-- realtime vs pipeline 真机 A/B 结果 → 定默认语音架构。
+- **默认语音架构**：realtime 真机更快(≈1.4s)但成本高/需 gpt-realtime 权限；默认仍 pipeline，是否切 realtime 默认由客户定。
+- 白名单**自动放行**策略：`AUTO_PASS_WHITELIST` 默认关（仍需保安确认），是否对常客/VIP 开自动抬杆。
+- 黑名单命中后处置：当前=告警门卫+绝不自动放行+AI 正常登记不冲突；是否要更强动作（拒绝登记/通知管理）。
 - 最终模型选型（客户）。
 - 微信预备方案推进时机（方案 A 已具备/方案 B 按钮回调）。
-- PRODUCT_FLOW 里仍待定的产品点（自动放行策略、回执、被访公司通知、黑白名单、隐私留存）。
+- PRODUCT_FLOW 里仍待定的产品点（回执、被访公司通知、隐私留存）。

@@ -110,6 +110,21 @@
 - ✅ 测试 31 → **34 全绿**。决策与计划变更同步进 CHANGELOG v0.8。
 - 说明：本轮只做离线可验证、不需你账号/钱的项；真机电话/真账号项留待你 review 后定。
 
+## 第九轮（采纳真机测试反馈 + 两条新需求；v0.22）
+
+用户在 Windows 11 ARM64 真机测完新版本，给了详细"问题→根因→方案"总结，并新增两条需求。本轮一次性落地（测试 49→**74** 离线全绿；2 个 `/token` 用例只差沙箱未装 livekit）：
+
+- ✅ **realtime 合入主线（FR-1 + P0-4）**：`VOICE_MODE` 开关并入 dev，**不回退** roster/`LLM_BASE_URL`（realtime 分支是从二者合并前分出的，naive merge 会删掉它们）→ 手动只挪 realtime 增量。realtime + 名单/黑白名单**可同时用**（槽位逻辑与语音模式无关）。修复 realtime `session.say(固定文本)` 崩溃 → `_speak()`（realtime=`generate_reply`/pipeline=`say`），开场白 + 转人工让位都走它。
+- ✅ **黑白名单（NEW-2）**：`access.py` 车牌/手机精确匹配，黑名单优先；黑名单告警+绝不自动放行、白名单可选 `AUTO_PASS_WHITELIST` 自动放行；`ACCESS_LIST_PATH` 开关，默认关。
+- ✅ **通知加"老访客 + 黑白名单"信息（NEW-1）**：Telegram/企微/Discord 卡片高亮行 + 后台 ⛔/✅ 徽标（共享 `common.status_lines()`）。
+- ✅ **放行后 AI 语音通知访客（FR-2）**：web→LiveKit 数据消息→agent `_speak`；`visits.room` + best-effort（挂断/未配 LiveKit 静默不影响放行）。
+- ✅ **① Telegram localhost 按钮**：不带按钮+链接进正文+失败降级纯文本；`.env.example`/`NOTIFY_SETUP` 注明。
+- ✅ **⑥ `/voice` 自动播放兜底**：「点击启用声音」按钮 + 提示。
+- ✅ **② 测试隔离**：禁用该用例 `.env` 读取；`/token` 未配置=400 前置到 import livekit 之前。
+- ✅ **DB 迁移**：`access_status`/`room` 列 + `_ensure_columns()` 增量加列（老 SQLite 不崩）。
+
+决策：realtime 真机更快 → 提为主线可选模式（默认仍 pipeline，待客户定默认）；黑白名单从计划池提前实现。真机验证 prompt 见 `SESSION_HANDOFF.md`（realtime+名单同开、黑白名单、FR-2 放行播报）。
+
 ## 怎么快速验收（建议顺序）
 
 1. `PYTHONPATH=src pytest -q` → 应 16 passed。

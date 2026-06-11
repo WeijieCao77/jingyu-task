@@ -142,6 +142,21 @@
 ### v0.21 — 公司名单匹配合并进主分支（默认关，匹配不到不影响）
 - **改动**：`feature/data-matching` 合并入 dev——`roster.py` + 车牌省份归一 + `ROSTER_PATH` 开关，默认关闭、匹配不到保留原值，对现有测试零影响。等用户给模拟公司名单再测一轮。
 
+## 2026-06-11
+
+### v0.22 — 采纳真机测试反馈 + 新需求：realtime 合主线 / 黑白名单 / 通知增强 / 多项修复
+> 来源：用户在 Windows 11 ARM64 真机测试新版本后的总结（Telegram/复述确认/简化界面/名单/realtime）+ 两条新需求（通知加"老访客"信息、黑白名单）。本轮把这些一次性落地，测试 49→74。
+- **改动**：
+  - **realtime 合入主线（FR-1 + P0-4）**：把 `VOICE_MODE=pipeline|realtime` 开关并入 dev，但**不回退** roster / `LLM_BASE_URL`（realtime 分支是从二者合并前分出的，直接 merge 会删掉它们）。realtime 模式下 `RegistrationSession` 照样注入 `roster_match`/`access_check`（槽位逻辑与语音模式无关），**realtime + 名单可同时用**。修复 realtime 崩溃：realtime 无独立 TTS，`session.say(固定文本)` 会抛 RuntimeError 崩 job → 新增 `_speak()` 助手（realtime 用 `generate_reply`、pipeline 用 `say`），开场白**和**转人工让位都走它。默认仍 pipeline，realtime 一行开关。
+  - **黑白名单（新需求 NEW-2）**：`access.py` 按规范化后的车牌/手机**精确匹配**，黑名单优先（fail-safe）。黑名单=告警门卫（`access_alert` 事件 + 卡片/后台 ⛔ 标注）+**绝不自动放行**，但 AI 仍正常登记（门口不冲突，由门卫处置）；白名单=快速通道，`AUTO_PASS_WHITELIST`（默认关）开则**自动确认+抬杆**。`ACCESS_LIST_PATH` 配 JSON 才开启（见 `access.example.json`），默认关、零影响。
+  - **通知增强（新需求 NEW-1）**：每条推送（Telegram/企微/Discord）新增高亮行——**老访客**（匹配依据·第N次·上次单位/事由）与 **⛔黑名单/✅白名单**；命中名单时标题前缀醒目。后台 Dashboard 表格加 ⛔/✅ 徽标。共享 `common.status_lines()`。
+  - **放行后 AI 通知访客（FR-2）**：门卫放行后，web 端向访客 LiveKit 房间发 `{"type":"approved"}` 数据消息（两条放行路径都发），agent 收到后用 `_speak()` 告诉访客"已放行、请进"。`visits.room` 记录房间；best-effort（访客挂断/未配 LiveKit 时静默不影响放行）。
+  - **① Telegram localhost 按钮修复**：Telegram 拒绝 localhost 按钮 URL 会让**整条消息发不出**。`button_safe_url()` 对 localhost 不带按钮、把链接写进正文；发送失败再被拒时**降级为纯文本卡片**兜底。`.env.example`/`NOTIFY_SETUP` 注明 Telegram 不能用 localhost。
+  - **⑥ `/voice` 自动播放兜底**：浏览器拦截自动播放时不再"静默没声音"，显示「点击启用声音」按钮 + 提示。
+  - **② 测试隔离**：`test_token_requires_config` 在本地有 `.env`(LIVEKIT_*) 时误判 → 禁用该测试的 `.env` 读取；并把 `/token` 的"未配置=400"判断**前置到 import livekit 之前**（无该包也能干净返回）。
+  - **DB 健壮性**：新增 `visits.access_status` / `visits.room` 列 + `_ensure_columns()` 轻量增量迁移（create_all 不会给已存在表加列），老 SQLite 文件不再 `no such column`。
+- **计划变更**：用户真机 A/B 确认 realtime 首句 ≈1.4s 明显更快 → realtime 从"实验分支"提为**主线可选模式**（默认仍 pipeline，待客户定默认）。黑白名单从计划池/预备方案**提前实现**。企微自建应用按钮回调仍留作生产形态（`WECHAT_PLAN.md` 方案 B）。
+
 ---
 
 ## 待办 / 下一步候选（计划池）

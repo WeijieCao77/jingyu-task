@@ -33,6 +33,12 @@ TELEGRAM_CHAT_ID=<你的 chat id>
 PUBLIC_BASE_URL=<公网 https（要点放行按钮才需要）>
 ```
 
+> ⚠️ **Telegram + PUBLIC_BASE_URL 不能用 localhost**：Telegram 会拒绝 `http://localhost:8080/...`
+> 这类按钮 URL，而一个非法按钮会让**整条卡片发不出**（消息静默丢失）。用 Telegram 时把
+> `PUBLIC_BASE_URL` 指向**手机可达**的地址：cloudflared/ngrok 隧道的 https，或本机
+> Tailscale IP（如 `http://100.x.x.x:8080`）。代码已兜底：URL 不可用时自动**去掉按钮、把确认
+> 链接写进正文**，保证消息至少能到手机（点正文链接照样放行）。
+
 ### 验证（不用打电话也能测）
 ```
 # 文本仿真会真的把卡片推到你的 Telegram
