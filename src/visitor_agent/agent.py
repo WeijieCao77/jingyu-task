@@ -44,10 +44,32 @@ from livekit.plugins import silero as _silero  # noqa: E402,F401
 from .config import get_settings
 from .db import repo
 from .prompts import GREETING, SYSTEM_PROMPT
-from .providers import build_llm, build_stt, build_tts, build_turn_detection, build_vad
+from .providers import (
+    build_llm,
+    build_realtime,
+    build_stt,
+    build_tts,
+    build_turn_detection,
+    build_vad,
+)
 from .session_logic import LiveNotifier, RegistrationSession, make_db_lookup
 
 logger = logging.getLogger("visitor_agent.agent")
+
+
+async def _speak(session, cfg, text: str, *, allow_interruptions: bool = True) -> None:
+    """Speak a line regardless of voice mode.
+
+    Realtime (speech-to-speech) has no standalone TTS and can't `say()` a fixed
+    string — calling it raises RuntimeError and crashes the job — so we ask the
+    model to voice the line instead. Pipeline keeps the deterministic `say()`.
+    """
+    if cfg.voice_mode == "realtime":
+        await session.generate_reply(
+            instructions=f"用自然的中文普通话对访客说这句话（可润色语气，但保持原意）：{text}"
+        )
+    else:
+        await session.say(text, allow_interruptions=allow_interruptions)
 
 
 class VisitorAgent(Agent):
@@ -138,26 +160,34 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     agent = VisitorAgent(reg)
 
-    # Turn detection improves barge-in naturalness but needs a model file.
-    # If it isn't available, fall back to VAD-only endpointing so the call
-    # still works — "directly usable" beats "perfect".
-    try:
-        turn_detection = build_turn_detection()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("turn detector unavailable, using VAD only: %s", exc)
-        turn_detection = None
+    if cfg.voice_mode == "realtime":
+        # Speech-to-speech: one realtime model replaces STT+LLM+TTS (lowest
+        # latency; turn detection runs server-side). The roster / returning /
+        # slot-filling logic lives in session_logic and is voice-mode-independent,
+        # so it keeps working unchanged here.
+        logger.info("voice_mode=realtime (speech-to-speech)")
+        session = AgentSession(llm=build_realtime(cfg))
+    else:
+        # Pipeline STT→LLM→TTS. Turn detection improves barge-in naturalness but
+        # needs a model file. If it isn't available, fall back to VAD-only
+        # endpointing so the call still works — "directly usable" beats "perfect".
+        try:
+            turn_detection = build_turn_detection()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("turn detector unavailable, using VAD only: %s", exc)
+            turn_detection = None
 
-    session = AgentSession(
-        stt=build_stt(cfg),
-        llm=build_llm(cfg),
-        tts=build_tts(cfg),
-        vad=build_vad(cfg),
-        turn_detection=turn_detection,
-        # Latency: start generating before the caller fully finishes + reply
-        # sooner after they stop. Tunable via env (see config.py).
-        preemptive_generation=cfg.preemptive_generation,
-        min_endpointing_delay=cfg.min_endpointing_delay,
-    )
+        session = AgentSession(
+            stt=build_stt(cfg),
+            llm=build_llm(cfg),
+            tts=build_tts(cfg),
+            vad=build_vad(cfg),
+            turn_detection=turn_detection,
+            # Latency: start generating before the caller fully finishes + reply
+            # sooner after they stop. Tunable via env (see config.py).
+            preemptive_generation=cfg.preemptive_generation,
+            min_endpointing_delay=cfg.min_endpointing_delay,
+        )
 
     # Stream the live transcript to the dashboard (final turns only).
     @session.on("conversation_item_added")
@@ -184,7 +214,8 @@ async def entrypoint(ctx: JobContext) -> None:
 
         async def _handoff() -> None:
             try:
-                await session.say("门卫师傅来了，由他来跟您说，再见。", allow_interruptions=False)
+                await _speak(session, cfg, "门卫师傅来了，由他来跟您说，再见。",
+                             allow_interruptions=False)
             except Exception:  # noqa: BLE001
                 logger.exception("handoff say error")
             finally:
@@ -197,8 +228,10 @@ async def entrypoint(ctx: JobContext) -> None:
 
     await session.start(agent=agent, room=ctx.room)
 
-    # Agent speaks first — this is when the 25-second clock starts.
-    await session.say(GREETING, allow_interruptions=True)
+    # Agent speaks first — this is when the 25-second clock starts. In realtime
+    # mode there's no standalone TTS to say() a fixed string, so _speak() asks the
+    # model to voice the greeting instead (pipeline still say()s it verbatim).
+    await _speak(session, cfg, GREETING, allow_interruptions=True)
 
 
 def main() -> None:
