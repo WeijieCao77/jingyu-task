@@ -116,7 +116,25 @@
 - 测试 39 passed（更新 voice 文案断言）。
 - **计划变更**：从"基础设施/远程访问"切回"产品打磨"；号码准确性用 AI 确认层兜底而非强求模型。
 
-### v0.19 — 模型可换架构（客户最终决定用哪个模型）
+### v0.17 — 通知渠道：Telegram + 企业微信多渠道（已并入主分支）
+- **改动**（原 `feature/wechat-push`，PR #2 已合并）：
+  - 通知做成**可同时多渠道**：`NOTIFY_CHANNEL` 逗号分隔（如 `telegram,wecom` 同时推两边）；`dispatch.push` 对每个渠道都发、任一成功即算成功。
+  - 通知卡片（Telegram/企微/Discord）加入**姓名**字段。
+  - **`NOTIFY_SETUP.md`**：5 分钟把消息推到手机（Telegram 首选）+ 企微/Discord + 给本地 CC 的设置 prompt。
+  - 渠道路线图：**Telegram + 企业微信群机器人同步推进**（都只要手机号、不要公司/执照）；企微自建应用/微信为国内生产最终落地。`WECHAT_PLAN.md` 补"零、你需要准备什么（不需要营业执照）"。
+- **计划变更**：通知主线定为 Telegram（demo 即用）；企业微信预备方案（群机器人已具备、自建应用按钮回调后续推进）；最终国内落地用国内软件。
+
+### v0.18 —（分支 feature/data-matching）公司名单匹配 + 车牌省份归一
+> 真机测试：车牌"粤A"记成"月月"、"蓝色鲸鱼"记成"蓝色金鱼"。
+- **改动**：`roster.py` 公司名单模糊匹配（汉字+拼音相似度，"蓝色金鱼"→"蓝色鲸鱼科技"），接入登记流程、AI 确认纠正名；`slots.normalize_plate` 省份名→简称（广东A→粤A，31 省）。**默认关闭**（`ROSTER_PATH` 配了才生效）。`DATA_MATCHING_PLAN.md`。
+- **计划变更**：数据准确性策略——封闭集合（公司）用名单匹配、开放集合（车牌/手机）用 AI 复述确认。
+
+### v0.19 —（分支 feature/realtime-voice）语音架构 A/B：三段 pipeline → speech-to-speech (gpt-realtime)
+> 真机感觉"说一句话/AI 说话会卡一会"——主因是 pipeline 三段串联。
+- **改动**：**不换框架（仍 LiveKit）**，加 `VOICE_MODE` 开关：`pipeline`（默认）/ `realtime`。realtime 用 `openai.realtime.RealtimeModel`(`gpt-realtime`，同一 OpenAI key)，音频进音频出、**延迟明显更低**，且**仍保留 zh 文字转写 + 工具调用**——填槽/后台/数据库/转人工全不变。`ARCHITECTURE_AB.md` 对比两模式 + 提速/提准杠杆。
+- **计划变更**：**架构演进的关键一步**——把"大脑"从三段 pipeline 切到 speech-to-speech，解决延迟；保留 pipeline 作可回退默认；最终用哪种由真机 A/B + 客户定。
+
+### v0.20 — 模型可换架构（客户最终决定用哪个模型）
 - **改动**：LLM 增加 `LLM_BASE_URL`——指向任一 **OpenAI 兼容端点**即可接 GPT/Claude/Gemini/Qwen/Llama/DeepSeek/豆包/Kimi 等**任意模型（含国内）**，工具调用照常；`providers.build_llm` 透传 base_url，留空=官方 OpenAI。
 - **`MODELS.md`**：现在用哪些模型、怎么逐项换（LLM/STT/TTS/语音架构）、客户可选任意模型的配置矩阵、加新 provider 的方式。`.env.example` 加 `LLM_BASE_URL` 示例。
 - **计划变更**：明确"模型是配置项不是架构"——客户选定后改 `.env` 三五行即切换，无需改码。
