@@ -176,11 +176,13 @@ def dashboard() -> HTMLResponse:
 @app.get("/token")
 def mint_token(room: str = "voice-demo", identity: str = "visitor") -> JSONResponse:
     """Mint a LiveKit join token so the browser can join the agent's room."""
-    from livekit import api
-
     cfg = get_settings()
     if not (cfg.livekit_api_key and cfg.livekit_api_secret and cfg.livekit_url):
+        # Report "not configured" without needing the livekit package installed.
         return JSONResponse({"error": "LiveKit not configured in .env"}, status_code=400)
+
+    from livekit import api
+
     token = (
         api.AccessToken(cfg.livekit_api_key, cfg.livekit_api_secret)
         .with_identity(identity)
@@ -373,13 +375,22 @@ _VOICE_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
   <div class="orb idle" id="mic">🎙️</div>
   <button id="btn">开始对话</button>
   <button id="hang" class="hang" style="display:none">挂断</button>
+  <button id="snd" style="display:none;background:#ffd86b;color:#1f4f6b;margin-top:14px">🔊 点击启用声音</button>
   <div class="status" id="status"></div>
 </div>
 <script>
 const btn=document.getElementById('btn'),hang=document.getElementById('hang'),
-      st=document.getElementById('status'),mic=document.getElementById('mic');
-let room;
-function reset(){mic.className='orb idle';mic.textContent='🎙️';hang.style.display='none';btn.disabled=false;btn.style.display='inline-block';}
+      st=document.getElementById('status'),mic=document.getElementById('mic'),
+      snd=document.getElementById('snd');
+let room; const pending=[];
+function reset(){mic.className='orb idle';mic.textContent='🎙️';hang.style.display='none';btn.disabled=false;btn.style.display='inline-block';snd.style.display='none';pending.length=0;}
+// Autoplay is often blocked until a user gesture. Instead of silently failing
+// (the "没有声音" trap), reveal a visible button so the visitor can enable sound.
+function tryPlay(el){ if(!el||!el.play) return;
+  el.play().catch(()=>{ pending.push(el); snd.style.display='inline-block';
+    st.innerHTML='🔇 浏览器拦截了自动播放——请点上方<b>「启用声音」</b>'; }); }
+snd.onclick=()=>{ pending.forEach(el=>el.play().catch(()=>{})); pending.length=0;
+  snd.style.display='none'; st.innerHTML='已接通，门卫会先开口——请直接说话'; };
 btn.onclick=async()=>{
   btn.disabled=true; st.textContent='正在接入…';
   try{
@@ -390,7 +401,7 @@ btn.onclick=async()=>{
     room.on(LivekitClient.RoomEvent.TrackSubscribed,(track)=>{
       if(track.kind==='audio'){const el=track.attach();el.autoplay=true;
         el.setAttribute('playsinline','');el.muted=false;document.body.appendChild(el);
-        el.play&&el.play().catch(()=>{});}});
+        tryPlay(el);}});
     room.on(LivekitClient.RoomEvent.Disconnected,()=>{st.textContent='已挂断';reset();});
     await room.connect(d.url,d.token);
     await room.localParticipant.setMicrophoneEnabled(true);

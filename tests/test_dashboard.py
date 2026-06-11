@@ -78,6 +78,9 @@ def test_token_requires_config(temp_db, monkeypatch):
         monkeypatch.delenv(k, raising=False)
     from visitor_agent import config
 
+    # Don't let a real local .env (with LIVEKIT_* set) leak in and make /token
+    # think LiveKit is configured — this test asserts the unconfigured path.
+    monkeypatch.setitem(config.Settings.model_config, "env_file", None)
     config.get_settings.cache_clear()
     from visitor_agent.web import server as srv
 
