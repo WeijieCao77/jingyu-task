@@ -6,7 +6,7 @@
 
 ## 两种模式
 
-| | `VOICE_MODE=pipeline`（默认） | `VOICE_MODE=realtime` |
+| | `VOICE_MODE=pipeline`（可回退） | `VOICE_MODE=realtime`（**默认**·真机更快） |
 |---|---|---|
 | 链路 | STT → LLM → TTS（三段串联，延迟叠加） | 一个实时模型，音频进音频出 |
 | 延迟 | 较高（你感觉到的"卡"） | **明显更低**（几乎无停顿） |
@@ -30,7 +30,7 @@ REALTIME_VOICE=marin         # 试不同音色
 ## 实现说明（保留可回退）
 - `providers.build_realtime()` 构造 `openai.realtime.RealtimeModel`（带 zh 转写）。
 - `agent.py` 按 `VOICE_MODE` 分支：realtime 时 `AgentSession(llm=RealtimeModel)`，不接 STT/TTS/VAD（实时模型自带服务端 turn detection）；pipeline 保持原样（含 preemptive_generation + VAD 调优）。
-- **默认 pipeline，不影响现有 demo**；realtime 是实验开关。
+- **默认 realtime（v0.23，真机 A/B 后定）**；`VOICE_MODE=pipeline` 一行回退（便宜/有文字/不需 gpt-realtime 权限）。
 
 ## 还想再快 / 再准的其他杠杆
 - **Pipeline 内提速**（不换模式）：已开 `preemptive_generation`、调低 `VAD_MIN_SILENCE`/`MIN_ENDPOINTING_DELAY`；可继续下调。

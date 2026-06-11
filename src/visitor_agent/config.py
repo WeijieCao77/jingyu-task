@@ -18,10 +18,9 @@ class Settings(BaseSettings):
     )
 
     # ---- Voice architecture ----
-    # pipeline = STT→LLM→TTS（默认，便宜、有文字）；
-    # realtime = speech-to-speech 实时模型（首句/每轮延迟低很多，仍有转写+工具调用，成本高些）。
-    # 真机实测：pipeline 冷启动首句较慢；realtime 首句 ≈1.4s。客户可一行切换。
-    voice_mode: str = "pipeline"             # pipeline | realtime
+    # realtime = speech-to-speech 实时模型（默认；真机实测首句 ≈1.4s，明显更快）；
+    # pipeline = STT→LLM→TTS（便宜、有文字，可回退）。客户可一行切换。
+    voice_mode: str = "realtime"             # realtime | pipeline
     realtime_model: str = "gpt-realtime"
     realtime_voice: str = "marin"
 

@@ -108,6 +108,11 @@ def get_visit_by_token(token: str) -> Visit | None:
         return s.scalar(select(Visit).where(Visit.confirm_token == token))
 
 
+def get_visit_by_id(visit_id: int) -> Visit | None:
+    with _session() as s:
+        return s.get(Visit, visit_id)
+
+
 def mark_confirmed(token: str) -> Visit | None:
     """Idempotently flip a pending visit to confirmed; returns the visit."""
     with _session() as s:

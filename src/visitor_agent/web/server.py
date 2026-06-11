@@ -97,6 +97,15 @@ def confirm(token: str = Query(...)) -> HTMLResponse:
     if visit is None:
         return _page("链接无效", "未找到对应的访客记录。", color="#c62828")
 
+    # Blacklist: registered but NOT released (园区策略：黑名单登记不放行). The gate
+    # never opens from the normal flow; a human must handle it out-of-band.
+    if visit.access_status == "blacklist":
+        return _page(
+            "⛔ 黑名单 · 禁止放行",
+            f"车牌 <b>{visit.plate or '—'}</b> 在黑名单，已登记但<b>不予放行</b>。请人工核实处理。",
+            color="#c62828",
+        )
+
     already = visit.status == "confirmed"
     confirmed = repo.mark_confirmed(token)
     if confirmed and not already:
@@ -135,9 +144,14 @@ def admin() -> HTMLResponse:
 @app.post("/api/confirm/{visit_id}")
 def api_confirm(visit_id: int) -> JSONResponse:
     """Local guard console: confirm + open gate from the Dashboard button."""
-    visit = repo.mark_confirmed_by_id(visit_id)
+    visit = repo.get_visit_by_id(visit_id)
     if visit is None:
         return JSONResponse({"error": "not found"}, status_code=404)
+    if visit.access_status == "blacklist":  # 黑名单登记不放行
+        return JSONResponse(
+            {"error": "blacklisted", "message": "黑名单车辆，禁止放行"}, status_code=403
+        )
+    visit = repo.mark_confirmed_by_id(visit_id)
     gate.open_gate(visit_id=visit.id, plate=visit.plate)
     call_id = f"visit-{visit.id}"
     repo.log_event(call_id, "confirmed", text=f"保安已确认放行 {visit.plate or ''}")
@@ -332,7 +346,8 @@ async function visits(){try{const r=await fetch('/api/visits');const d=await r.j
    const act=v.status==='confirmed'
      ?'<span class="pill ok">已放行 '+(v.confirmed_at?v.confirmed_at.slice(11,16):'')+'</span>'
      :'<span class="pill wait">待核对</span>';
-   const btn=v.status==='confirmed'?'':'<button class="go" onclick="confirmVisit('+v.id+')">放行</button>';
+   const btn=v.access_status==='blacklist'?'<span class="pill bad">⛔ 禁止放行</span>'
+     :(v.status==='confirmed'?'':'<button class="go" onclick="confirmVisit('+v.id+')">放行</button>');
    const flag=v.access_status==='blacklist'?'<span class="pill bad">⛔黑名单</span> ':
               v.access_status==='whitelist'?'<span class="pill vip">✅白名单</span> ':'';
    const cls=seen.has(v.id)?'':'new'; seen.add(v.id);

@@ -1,10 +1,12 @@
-def test_default_voice_mode_is_pipeline(monkeypatch):
-    for k in ("VOICE_MODE",):
-        monkeypatch.delenv(k, raising=False)
+def test_default_voice_mode_is_realtime(monkeypatch):
+    monkeypatch.delenv("VOICE_MODE", raising=False)
     from visitor_agent import config
 
+    # Ignore any on-disk .env so the *code* default is what's asserted.
+    monkeypatch.setitem(config.Settings.model_config, "env_file", None)
     config.get_settings.cache_clear()
-    assert config.get_settings().voice_mode == "pipeline"
+    assert config.get_settings().voice_mode == "realtime"
+    config.get_settings.cache_clear()
 
 
 def test_voice_mode_env_override(monkeypatch):

@@ -132,6 +132,32 @@ def test_notify_room_approved_is_safe_without_livekit(temp_db, monkeypatch):
     srv._notify_room_approved(None)
 
 
+def test_blacklist_cannot_be_released(temp_db, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from visitor_agent.notify import gate
+    from visitor_agent.web import server as srv
+
+    importlib.reload(srv)
+    opened = {}
+    monkeypatch.setattr(srv.gate, "open_gate", lambda **kw: opened.update(kw) or True)
+
+    v = temp_db.create_visit(
+        {"plate": "沪A00000", "access_status": "blacklist"}, "tokbl"
+    )
+    client = TestClient(srv.app)
+
+    # link path: registered but refused, gate not opened, still pending
+    page = client.get("/confirm", params={"token": "tokbl"})
+    assert "禁止放行" in page.text
+    # dashboard button path: 403
+    api = client.post(f"/api/confirm/{v.id}")
+    assert api.status_code == 403 and "黑名单" in api.json()["message"]
+
+    assert not opened  # gate never fired
+    assert temp_db.get_visit_by_id(v.id).status == "pending"
+
+
 def test_confirm_endpoint_opens_gate(temp_db, monkeypatch):
     from fastapi.testclient import TestClient
 
