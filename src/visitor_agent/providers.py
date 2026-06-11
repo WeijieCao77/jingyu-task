@@ -79,6 +79,26 @@ def build_vad(cfg: Settings | None = None):
     return silero.VAD.load(min_silence_duration=min_silence)
 
 
+def build_realtime(cfg: Settings):
+    """Speech-to-speech realtime model (low latency). Still transcribes the
+    caller (for slot-filling / dashboard / DB) and supports tool calling.
+    Uses the OpenAI key (OPENAI_API_KEY in env)."""
+    from livekit.plugins import openai
+
+    kwargs: dict = {"model": cfg.realtime_model, "voice": cfg.realtime_voice}
+    # Keep a Chinese transcript of the caller's audio so the rest of the system
+    # (record_visitor_info, dashboard, visits DB) works exactly as in pipeline mode.
+    try:
+        from openai.types.beta.realtime.session import InputAudioTranscription
+
+        kwargs["input_audio_transcription"] = InputAudioTranscription(
+            model=cfg.stt_model, language=cfg.stt_language
+        )
+    except Exception:  # noqa: BLE001 — type path varies by SDK; transcript is best-effort
+        pass
+    return openai.realtime.RealtimeModel(**kwargs)
+
+
 def build_turn_detection():
     """Multilingual (incl. Chinese) semantic turn detector for natural barge-in."""
     from livekit.plugins.turn_detector.multilingual import MultilingualModel

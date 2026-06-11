@@ -17,6 +17,13 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
+    # ---- Voice architecture ----
+    # pipeline = STT→LLM→TTS（默认，便宜、有文字）；
+    # realtime = speech-to-speech 实时模型（延迟低很多，仍有转写+工具调用，成本高些）
+    voice_mode: str = "pipeline"             # pipeline | realtime
+    realtime_model: str = "gpt-realtime"
+    realtime_voice: str = "marin"
+
     # ---- LLM brain ----
     # 默认全 OpenAI（只需一个 key 把线路跑通）；想用 Claude 当大脑改成 anthropic。
     llm_provider: str = "openai"             # openai | anthropic

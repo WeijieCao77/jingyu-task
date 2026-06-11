@@ -44,7 +44,14 @@ from livekit.plugins import silero as _silero  # noqa: E402,F401
 from .config import get_settings
 from .db import repo
 from .prompts import GREETING, SYSTEM_PROMPT
-from .providers import build_llm, build_stt, build_tts, build_turn_detection, build_vad
+from .providers import (
+    build_llm,
+    build_realtime,
+    build_stt,
+    build_tts,
+    build_turn_detection,
+    build_vad,
+)
 from .session_logic import LiveNotifier, RegistrationSession, make_db_lookup
 
 logger = logging.getLogger("visitor_agent.agent")
@@ -135,26 +142,31 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     agent = VisitorAgent(reg)
 
-    # Turn detection improves barge-in naturalness but needs a model file.
-    # If it isn't available, fall back to VAD-only endpointing so the call
-    # still works — "directly usable" beats "perfect".
-    try:
-        turn_detection = build_turn_detection()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("turn detector unavailable, using VAD only: %s", exc)
-        turn_detection = None
+    if cfg.voice_mode == "realtime":
+        # Speech-to-speech: one realtime model replaces STT+LLM+TTS (lowest
+        # latency). It does its own server-side turn detection.
+        logger.info("voice_mode=realtime (speech-to-speech)")
+        session = AgentSession(llm=build_realtime(cfg))
+    else:
+        # Pipeline STT→LLM→TTS. Turn detection improves barge-in but needs a
+        # model file; fall back to VAD-only so the call still works.
+        try:
+            turn_detection = build_turn_detection()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("turn detector unavailable, using VAD only: %s", exc)
+            turn_detection = None
 
-    session = AgentSession(
-        stt=build_stt(cfg),
-        llm=build_llm(cfg),
-        tts=build_tts(cfg),
-        vad=build_vad(cfg),
-        turn_detection=turn_detection,
-        # Latency: start generating before the caller fully finishes + reply
-        # sooner after they stop. Tunable via env (see config.py).
-        preemptive_generation=cfg.preemptive_generation,
-        min_endpointing_delay=cfg.min_endpointing_delay,
-    )
+        session = AgentSession(
+            stt=build_stt(cfg),
+            llm=build_llm(cfg),
+            tts=build_tts(cfg),
+            vad=build_vad(cfg),
+            turn_detection=turn_detection,
+            # Latency: start generating before the caller fully finishes + reply
+            # sooner after they stop. Tunable via env (see config.py).
+            preemptive_generation=cfg.preemptive_generation,
+            min_endpointing_delay=cfg.min_endpointing_delay,
+        )
 
     # Stream the live transcript to the dashboard (final turns only).
     @session.on("conversation_item_added")

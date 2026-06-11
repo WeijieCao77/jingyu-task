@@ -116,6 +116,14 @@
 - 测试 39 passed（更新 voice 文案断言）。
 - **计划变更**：从"基础设施/远程访问"切回"产品打磨"；号码准确性用 AI 确认层兜底而非强求模型。
 
+### v0.18（分支 feature/realtime-voice）— 语音架构 A/B：提速实验
+> 来源：真机感觉"说一句话/AI 说话会卡一会"。主因是 pipeline 三段串联。
+- **不换框架**（还是 LiveKit），加 `VOICE_MODE` 开关：`pipeline`（默认）/ `realtime`（speech-to-speech）。
+- `realtime` 用 `openai.realtime.RealtimeModel`（同一个 OpenAI key），音频进音频出、**延迟明显更低**，且**仍保留 zh 文字转写 + 工具调用**——填槽/后台/数据库/转人工全不变。成本高些（demo 可接受）。
+- `providers.build_realtime` + `agent.py` 按 `VOICE_MODE` 分支；默认 pipeline 不受影响。
+- 文档 `ARCHITECTURE_AB.md`（两模式对比 + 如何切换 A/B + 其他提速/提准杠杆）。测试 39→42。
+- **未验证**：realtime 需真机 A/B（沙箱无音频）；有问题改回 pipeline 即可。
+
 ---
 
 ## 待办 / 下一步候选（计划池）
