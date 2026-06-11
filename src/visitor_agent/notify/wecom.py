@@ -24,6 +24,7 @@ def build_markdown(visit: dict, confirm_url: str) -> str:
     phone = visit.get("phone") or "—"
     entry_time = visit.get("entry_time") or "—"
     returning = "（回访车辆）" if visit.get("returning") else ""
+    name_line = f"> **姓名**：{visit['name']}\n" if visit.get("name") else ""
 
     return (
         f"## 🚗 访客登记 {returning}\n"
@@ -31,6 +32,7 @@ def build_markdown(visit: dict, confirm_url: str) -> str:
         f"> **来访单位**：{company}\n"
         f"> **来访事由**：{reason}\n"
         f"> **手机号**：{phone}\n"
+        f"{name_line}"
         f"> **入场时间**：{entry_time}\n\n"
         f"[✅ 确认放行]({confirm_url})"
     )

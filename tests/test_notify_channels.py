@@ -32,3 +32,12 @@ def test_telegram_has_button_and_fields():
     assert p["reply_markup"]["inline_keyboard"][0][0]["url"] == "https://x.test/confirm?token=abc"
     for v in _visit().values():
         assert v in p["text"]
+
+
+def test_name_included_when_present():
+    from visitor_agent.notify.wecom import build_markdown
+
+    v = dict(_visit(), name="张师傅")
+    assert "张师傅" in discord.build_payload(v, "https://x/c?token=t")["embeds"][0]["description"]
+    assert "张师傅" in telegram.build_payload(v, "https://x/c?token=t", "1")["text"]
+    assert "张师傅" in build_markdown(v, "https://x/c?token=t")
