@@ -50,6 +50,41 @@ box-shadow:0 8px 30px rgba(0,0,0,.08);text-align:center;max-width:360px">
     return HTMLResponse(html)
 
 
+def _notify_room_approved(room: str | None) -> None:
+    """Best-effort: tell the visitor's live call the gate was approved, so the
+    AI can announce it (FR-2). No-op if LiveKit isn't configured/installed or the
+    visitor already hung up — must never break the confirm/gate flow."""
+    if not room:
+        return
+    cfg = get_settings()
+    if not (cfg.livekit_url and cfg.livekit_api_key and cfg.livekit_api_secret):
+        return
+    try:
+        import asyncio
+
+        from livekit import api
+
+        host = cfg.livekit_url.replace("wss://", "https://").replace("ws://", "http://")
+
+        async def _send() -> None:
+            lkapi = api.LiveKitAPI(host, cfg.livekit_api_key, cfg.livekit_api_secret)
+            try:
+                await lkapi.room.send_data(
+                    api.SendDataRequest(
+                        room=room,
+                        data=json.dumps({"type": "approved"}).encode("utf-8"),
+                        kind=api.DataPacketKind.KIND_RELIABLE,
+                        topic="gate",
+                    )
+                )
+            finally:
+                await lkapi.aclose()
+
+        asyncio.run(_send())
+    except Exception:  # noqa: BLE001 — visitor may have hung up; never break confirm
+        pass
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -68,6 +103,7 @@ def confirm(token: str = Query(...)) -> HTMLResponse:
         call_id = f"visit-{confirmed.id}"
         repo.log_event(call_id, "confirmed", text=f"保安已确认放行 {confirmed.plate or ''}")
         repo.log_event(call_id, "gate", text="已发送抬杆指令 (gate open)")
+        _notify_room_approved(confirmed.room)  # AI tells the visitor (FR-2)
 
     v = (confirmed or visit)
     detail = (
@@ -105,6 +141,7 @@ def api_confirm(visit_id: int) -> JSONResponse:
     call_id = f"visit-{visit.id}"
     repo.log_event(call_id, "confirmed", text=f"保安已确认放行 {visit.plate or ''}")
     repo.log_event(call_id, "gate", text="已发送抬杆指令 (gate open)")
+    _notify_room_approved(visit.room)  # AI tells the visitor (FR-2)
     return JSONResponse(visit.to_dict())
 
 

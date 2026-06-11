@@ -60,7 +60,7 @@ def init_db(database_url: str | None = None) -> Engine:
 # New nullable columns added after a DB may already exist. create_all() never
 # ALTERs an existing table, so a demo SQLite file (or a live Postgres) would
 # otherwise raise "no such column". Add them additively, idempotently.
-_ADDED_COLUMNS = {"access_status": "VARCHAR(16)"}
+_ADDED_COLUMNS = {"access_status": "VARCHAR(16)", "room": "VARCHAR(64)"}
 
 
 def _ensure_columns(engine: Engine) -> None:
@@ -94,6 +94,7 @@ def create_visit(info: dict, confirm_token: str, status: str = "pending") -> Vis
             entry_time=info.get("entry_time"),
             status=status,
             access_status=info.get("access_status"),
+            room=info.get("room"),
             confirm_token=confirm_token,
         )
         s.add(visit)

@@ -76,6 +76,62 @@ def test_recognize_profile(temp_db):
     assert repo.recognize(plate="京A00000", phone="13700000000") is None
 
 
+def test_create_visit_stores_room_and_access(temp_db):
+    repo = temp_db
+    repo.create_visit(
+        {"plate": "沪A1", "access_status": "whitelist", "room": "voice-demo"}, "tkr"
+    )
+    d = repo.get_visit_by_token("tkr").to_dict()
+    assert d["access_status"] == "whitelist" and d["room"] == "voice-demo"
+
+
+def test_whitelist_auto_pass_opens_gate(temp_db, monkeypatch):
+    import asyncio
+    import types
+
+    from visitor_agent.notify import gate
+    from visitor_agent.session_logic import LiveNotifier
+
+    opened = {}
+    monkeypatch.setattr(gate, "open_gate", lambda **kw: opened.update(kw) or True)
+
+    s = types.SimpleNamespace(
+        public_base_url="http://x", notify_channel="none", auto_pass_whitelist=True
+    )
+    asyncio.run(LiveNotifier(s).notify({"plate": "粤B88888", "access_status": "whitelist"}))
+    assert temp_db.recent_visits()[0].status == "confirmed"  # auto-passed
+    assert opened.get("plate") == "粤B88888"
+
+
+def test_whitelist_not_auto_passed_when_disabled(temp_db):
+    import asyncio
+    import types
+
+    from visitor_agent.session_logic import LiveNotifier
+
+    s = types.SimpleNamespace(
+        public_base_url="http://x", notify_channel="none", auto_pass_whitelist=False
+    )
+    asyncio.run(LiveNotifier(s).notify({"plate": "粤B88888", "access_status": "whitelist"}))
+    assert temp_db.recent_visits()[0].status == "pending"  # guard still confirms
+
+
+def test_notify_room_approved_is_safe_without_livekit(temp_db, monkeypatch):
+    # LiveKit configured but the package isn't installed here → must be a silent
+    # no-op, never raising into the confirm/gate flow (FR-2 best-effort).
+    monkeypatch.setenv("LIVEKIT_URL", "wss://x.livekit.cloud")
+    monkeypatch.setenv("LIVEKIT_API_KEY", "k")
+    monkeypatch.setenv("LIVEKIT_API_SECRET", "s")
+    from visitor_agent import config
+
+    config.get_settings.cache_clear()
+    from visitor_agent.web import server as srv
+
+    importlib.reload(srv)
+    srv._notify_room_approved("voice-demo")  # no raise
+    srv._notify_room_approved(None)
+
+
 def test_confirm_endpoint_opens_gate(temp_db, monkeypatch):
     from fastapi.testclient import TestClient
 

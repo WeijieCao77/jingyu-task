@@ -12,6 +12,7 @@ Run:  python -m visitor_agent.agent dev      # local dev (hot reload)
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 
 from dotenv import load_dotenv
@@ -123,8 +124,6 @@ def _make_event_sink(call_id: str):
     """Persist dashboard events; never let a logging error break the call."""
 
     def sink(kind: str, role: str | None, text: str | None, payload: dict | None) -> None:
-        import json
-
         try:
             repo.log_event(
                 call_id=call_id,
@@ -153,7 +152,7 @@ async def entrypoint(ctx: JobContext) -> None:
     from .roster import make_matcher
 
     reg = RegistrationSession(
-        notifier=LiveNotifier(cfg),
+        notifier=LiveNotifier(cfg, room=ctx.room.name),
         lookup_returning=make_db_lookup(),
         tz=cfg.timezone,
         event_sink=sink,
@@ -202,6 +201,29 @@ async def entrypoint(ctx: JobContext) -> None:
                 sink("user" if role == "user" else "agent", role, text, None)
         except Exception:  # noqa: BLE001
             logger.exception("transcript log error")
+
+    # Gate approved (FR-2): the web confirm handler sends a {"type":"approved"}
+    # data message to this room when the guard releases the barrier. The AI then
+    # tells the visitor it's done — closing the loop on the live call. Best-effort:
+    # the visitor may already have hung up.
+    @ctx.room.on("data_received")
+    def _on_data(packet) -> None:  # noqa: ANN001
+        try:
+            raw = getattr(packet, "data", packet)
+            msg = json.loads(bytes(raw).decode("utf-8"))
+        except Exception:  # noqa: BLE001
+            return
+        if msg.get("type") != "approved":
+            return
+        sink("approved", None, "保安已放行，AI 通知访客", None)
+
+        async def _announce() -> None:
+            try:
+                await _speak(session, cfg, "好的，已经为您放行，请进，栏杆已经抬起，祝您一路顺利！")
+            except Exception:  # noqa: BLE001
+                logger.exception("approved announce error")
+
+        asyncio.create_task(_announce())
 
     # Human takeover: when a guard joins the same room (identity starts with
     # "guard"), the AI hands off — says a short line, then leaves the room so the

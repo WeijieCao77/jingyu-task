@@ -226,8 +226,9 @@ class MockNotifier:
 class LiveNotifier:
     """Real path: write the DB row, then push the WeCom card with a confirm link."""
 
-    def __init__(self, settings) -> None:
+    def __init__(self, settings, room: str | None = None) -> None:
         self.s = settings
+        self.room = room  # LiveKit room of the live call (for the approved ping)
 
     async def notify(self, info: dict) -> str:
         import secrets
@@ -235,6 +236,8 @@ class LiveNotifier:
         from .db import repo
         from .notify import dispatch, gate
 
+        if self.room and not info.get("room"):
+            info["room"] = self.room
         token = secrets.token_urlsafe(16)
         visit = repo.create_visit(info, confirm_token=token, status="pending")
         confirm_url = f"{self.s.public_base_url.rstrip('/')}/confirm?token={token}"
