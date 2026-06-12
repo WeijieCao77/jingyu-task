@@ -12,7 +12,7 @@
 ## 3. 代码地图
 ```
 src/visitor_agent/
-  agent.py        LiveKit worker（电话/扫码/浏览器入口；VOICE_MODE 分支；主叫号预填手机；FR-2 放行播报）
+  agent.py        LiveKit worker（电话/扫码/浏览器入口；VOICE_MODE 分支；主叫号预填手机；FR-2 放行播报；门卫来电→GuardQueryAgent 语音查数据 GUARD_PHONES）
   providers.py    STT/LLM/TTS/realtime 装配（唯一“换模型”点）
   prompts.py      中文门卫 prompt（含 AI 复述确认层 + 转人工 + 名单匹配确认）
   slots.py        槽位 + 车牌/手机规范化（含省份名→简称）
@@ -22,7 +22,8 @@ src/visitor_agent/
   guard_query.py  门卫数据助手（OpenAI/Claude 双驱动；多轮 history；count_visits 含放行status）
   notify/         dispatch(多渠道) + telegram(localhost兜底)/discord/wecom + gate(海康/stub) + common(老访客/名单高亮)
   db/             visits(+access_status/room) + call_events；_ensure_columns 增量迁移
-  web/server.py   /voice(启用声音兜底) /qr /dashboard(名单徽标·黑名单禁放行) /ask(对话式数据助手) /admin /confirm(黑名单拒放行) /api/* /token /guard/query(多轮)；FR-2 approved 推送
+  web/server.py   /voice /qr /dashboard(徽标·黑名单禁放行) /ask(数据中心:对话+筛选) /api/query(确定性) /admin /login(门卫口令 GUARD_ACCESS_KEY 中间件) /confirm(黑名单拒放行) /token；FR-2 approved 推送
+  db/repo.py      SQLite 相对路径锚定项目根(持久化修复)；query_visits/count(status) 等只读查询
   sim/run_text.py 离线文本仿真（同一套逻辑，无需电话）
 scripts/setup_sip.sh  电话接入：建 LiveKit 入站 trunk+dispatch（见 TELEPHONY.md）
 tests/  76 个离线单测（沙箱缺 livekit 时 1 个 /token 用例跳过）   scenarios/ 仿真脚本

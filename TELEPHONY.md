@@ -72,6 +72,13 @@
 
 ---
 
+## 五·五、门卫打电话查数据（同号码，按来电号码区分角色）
+
+同一个入园号码：**访客**打进来=登记；**门卫**打进来=语音问数据（"今天放行了多少辆""高峰时段"）。靠 caller-ID 区分：
+- `.env` 设 `GUARD_PHONES=+8613xxxxxxxx`（逗号分隔 1~2 个门卫手机号）。
+- 来电号码在名单 → 路由到 **语音数据助手 `GuardQueryAgent`**（复用 `/ask` 同一套安全只读查询工具，纯语音问答，不登记）；否则按访客登记。留空=所有来电都按访客。
+- 网页端同理用 `GUARD_ACCESS_KEY` 口令守 `/dashboard /ask /admin`（访客的 `/voice` `/qr` 不受影响）。详见 `SETUP_GUIDE.md`。
+
 ## 六、给本地 Claude Code 的 prompt（你来跑，需你的 Twilio/LiveKit Cloud 账号）
 
 ```

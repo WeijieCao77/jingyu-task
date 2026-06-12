@@ -120,6 +120,15 @@
 验证：能多轮追问（"那本周呢"会接着上文）、数字对得上。它走 LLM，需要 .env 里的 OPENAI_API_KEY。
 ```
 
+### 📋 Prompt 3.6 —— 门卫专属访问（访客不能查数据）
+```
+帮我设门卫专属访问并自测两路：
+1. 网页：.env 设 GUARD_ACCESS_KEY=<我给的口令>，重启 web。验证：访客 /voice 仍能开；
+   但 /dashboard /ask /admin 会跳到 /login，输对口令后才进；输错进不去。
+2. 电话（若已通电话路）：.env 设 GUARD_PHONES=<我的门卫手机号>。我用这个号码拨入园电话，
+   验证 AI 变成"数据助手"问我想查什么（而不是登记）；换个非门卫号码拨则照常走访客登记。
+```
+
 ### 📋 Prompt 3.4 —— ☎️ 电话拨号进来（任务第一必交项，需 LiveKit Cloud + Twilio）
 ```
 帮我把"打电话给 AI 门卫"在我本机跑通，完整步骤见仓库 TELEPHONY.md。我有 Twilio 和 LiveKit Cloud。
