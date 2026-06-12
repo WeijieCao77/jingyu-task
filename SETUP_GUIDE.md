@@ -58,6 +58,31 @@
 ## 2. 交给本地 Claude Code：起服务 + 自测（复制下面 prompt）
 
 > 先把上面拿到的密钥准备好，本地 CC 会问你要、写进 `.env`、起服务、报错自查。
+> **只想填一次** → 先跑 **Prompt 0**（一次性配置）。之后所有 prompt 开头都默认"用现有 .env，缺什么才问"。
+
+### 📋 Prompt 0 —— 一次性配置（只填这一次，全部存进 .env，以后永不再问）
+```
+帮我做一次性配置：把我所有密钥/选项收齐写进项目根目录的 .env（gitignored，永不上传），
+以后任何测试/启动都直接读 .env，不要再问我要这些值。
+
+逐项问我（我给不出的就先留空、标 TODO，并告诉我以后怎么补）：
+1. OPENAI_API_KEY（必填）
+2. TELEGRAM_BOT_TOKEN（我已有 bot）；chat id 你来取：让我给 bot 发一句话，
+   然后你请求 https://api.telegram.org/bot<token>/getUpdates 解析出 TELEGRAM_CHAT_ID
+3. PUBLIC_BASE_URL：问我用哪种——cloudflared 隧道(你帮我起并把 https 填进去) / Tailscale IP / 暂时 localhost
+4. GUARD_ACCESS_KEY：问我要一个门卫口令（网页 /dashboard /ask /admin 登录用）
+5. GUARD_PHONES：问我门卫手机号（E.164，如 +8613...，可留空）
+6. LiveKit：现在先用本地（LIVEKIT_URL=ws://localhost:7880 devkey/secret）；
+   若我已有 LiveKit Cloud 三个值（URL/KEY/SECRET），用注释行写进 .env 备用并标明"电话用"
+7. SIP_INBOUND_NUMBER：我若已有 Twilio 号码就填，否则留空 TODO
+8. 固定写入：VOICE_MODE=realtime、NOTIFY_CHANNEL=telegram、
+   ROSTER_PATH=roster.example.json（我有自己的 roster.json 就用它）、
+   ACCESS_LIST_PATH=access.example.json、DATABASE_URL=sqlite:///./data/visits.db
+
+写完后：把 .env 内容打出来让我过目（密钥可打码），跑 PYTHONPATH=src pytest -q 确认环境 OK，
+并告诉我哪些项还是 TODO、补的时候改哪一行。以后我说"切换到电话模式"，你就把 LIVEKIT_* 
+换成注释里的 Cloud 三件套；说"切回本地"就换回来——不要再问我要值。
+```
 
 ### 📋 Prompt 2.0 —— 一键全面自测（不用电话，覆盖 A–H，最后给 ✅/❌ 清单）
 ```

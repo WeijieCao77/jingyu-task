@@ -35,25 +35,52 @@
 
 ---
 
-## 三、一步步搭（约 20 分钟，需 Twilio + LiveKit Cloud 账号）
+## 三、手把手：从注册到打通（约 30–40 分钟）
 
-1. **LiveKit Cloud**：建项目（免费）。`lk cloud auth` 登录 `lk` CLI（或把项目的 `LIVEKIT_URL/API_KEY/SECRET` 填进 `.env`）。拿到你的 **SIP 主机**（控制台 SIP 页，形如 `<proj>.sip.livekit.cloud`）。
-2. **Twilio**：买一个带 Voice 的号码 → 建 **Elastic SIP Trunk** → Origination URI 填 `sip:<proj>.sip.livekit.cloud`（把该号码指向 LiveKit）。
-   - 也可用更简的 **TwiML Bin**：`<Response><Dial><Sip>sip:<proj>.sip.livekit.cloud</Sip></Dial></Response>`，把号码的 Voice webhook 指向它。
-3. **LiveKit 入站 trunk + 派发规则**（本仓库脚本一键）：
-   ```bash
-   SIP_INBOUND_NUMBER=+1XXXXXXXXXX ./scripts/setup_sip.sh
-   ```
-   它创建：inbound trunk（认你的号码）+ dispatch rule（每通来电进独立房间 `call-xxxx`，天然并发）。
-4. **起 worker**（连 Cloud）：
-   ```bash
-   # .env: LIVEKIT_URL=wss://<proj>.livekit.cloud + API key/secret + OPENAI_API_KEY + VOICE_MODE=realtime
-   python -m visitor_agent.agent start
-   # 另开一个：python -m visitor_agent.web.server   （放行/Dashboard）
-   ```
-5. **拨打那个号码** → AI 门卫应在 1~2 秒内开口；走完对话 → 保安手机收到卡片 → 放行 → （FR-2）访客听到"已放行请进"。
+> **你（人）只做网页上的注册/购买/复制粘贴**；命令行/配置/起服务全部交给本地 Claude Code（prompt 在 §六）。
 
-> 25 秒计时 = Agent 开口到微信消息发出。realtime + caller-ID 预填手机，通常 1 轮（车牌+单位+事由）即可完成。
+### 第 1 步：注册 LiveKit Cloud（免费，≈5 分钟）
+1. 打开 **https://cloud.livekit.io** → 右上 **Sign Up**（用 Google/GitHub 邮箱皆可）。
+2. 登录后 **Create Project**，名字随意（如 `visitor-agent`）。
+3. 左侧 **Settings → Keys** → **Create Key** → 记下三样（一次性显示，存好）：
+   - `LIVEKIT_URL`：形如 `wss://visitor-agent-xxxx.livekit.cloud`
+   - `API Key`（`API...` 开头）、`API Secret`
+4. 左侧找 **SIP**（或 Settings → Project 里的 SIP URI）→ 记下 **SIP 主机**：形如
+   `visitor-agent-xxxx.sip.livekit.cloud`。第 3 步 Twilio 要把电话指到它。
+> 免费额度对 demo 足够；不需要绑卡。
+
+### 第 2 步：注册 Twilio + 买号码（≈10–15 分钟）
+1. 打开 **https://www.twilio.com/try-twilio** → 注册（邮箱 + 手机验证；你的中国手机号可以收验证码）。
+   注册完是**试用账户**，送 ~$15 额度，够买号码 + 测试很多通。
+2. **试用账户两个限制（重要）**：
+   - 只能和**已验证的号码**通话：Console → **Phone Numbers → Verified Caller IDs → Add**，把**你自己的手机号**（+86...）加进去并接验证码——这样你就能用自己手机拨测试。想让亲朋好友测，要么把他们号码也验证，要么升级账户（充 $20 即去除限制）。
+   - 接通后会先播一句"试用账户"提示音，正式演示前建议升级去掉。
+3. **开通国际语音地理权限**（让 +86 能打进来）：Console 搜 **Geo Permissions**（Voice Geographic Permissions）→ 把 **China** 勾上。
+4. **买号码**：Console → **Phone Numbers → Buy a Number** → 国家选 **United States**（最便宜稳妥，≈$1.15/月）→ 勾 **Voice** 能力 → Search → 任选一个 → **Buy**。
+   - 这个 +1 号码就是"入园电话"。（+86 号码 Twilio 基本拿不到——国内落地见 §四。）
+5. **把号码指到 LiveKit（TwiML Bin 法，最简单）**：
+   1) Console 搜 **TwiML Bins** → **Create new TwiML Bin** → 名字 `to-livekit`，内容（把主机换成你第 1 步记下的）：
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <Response><Dial><Sip>sip:visitor-agent-xxxx.sip.livekit.cloud</Sip></Dial></Response>
+   ```
+   2) **Phone Numbers → Manage → Active numbers** → 点你的号码 → **Voice Configuration**：
+      "A call comes in" 选 **TwiML Bin** → 选 `to-livekit` → **Save**。
+
+### 第 3 步：LiveKit 侧入站规则 + 起服务（全部交给本地 CC）
+把 §六 的 prompt 丢给本地 Claude Code。它会：装 `lk` CLI → 把 Cloud 三件套写进 `.env` → 跑
+`SIP_INBOUND_NUMBER=+1你的号码 ./scripts/setup_sip.sh`（建 inbound trunk + dispatch rule，每通来电独立房间）
+→ 起 `python -m visitor_agent.agent start` + web server。
+
+### 第 4 步：拨打实测
+用你**已验证**的手机拨那个 +1 号码 →（试用提示音后）AI 门卫 1~2 秒开口 → 对话登记 →
+25 秒内 Telegram 收到卡片 → 点放行 → 电话里听到"已放行请进"（FR-2）。
+若 `.env` 配了 `GUARD_PHONES=+86你的号`，**用这个号拨入会变成"语音数据助手"**——想测访客流程就换一个号码或临时清空该项。
+
+> 25 秒计时 = Agent 开口到推送发出。realtime + caller-ID 预填手机，通常 1 轮（车牌+单位+事由）即可完成。
+
+### 费用小账
+号码 $1.15/月 + 接听 ≈$0.0085/分 + LiveKit 免费额度 + OpenAI realtime ≈$0.2-0.5/分 → **一次完整 demo 通话 < ¥5**；试用送的 $15 够全部测试。
 
 ---
 
@@ -79,19 +106,23 @@
 - 来电号码在名单 → 路由到 **语音数据助手 `GuardQueryAgent`**（复用 `/ask` 同一套安全只读查询工具，纯语音问答，不登记）；否则按访客登记。留空=所有来电都按访客。
 - 网页端同理用 `GUARD_ACCESS_KEY` 口令守 `/dashboard /ask /admin`（访客的 `/voice` `/qr` 不受影响）。详见 `SETUP_GUIDE.md`。
 
-## 六、给本地 Claude Code 的 prompt（你来跑，需你的 Twilio/LiveKit Cloud 账号）
+## 六、给本地 Claude Code 的 prompt（你照 §三 注册好账号后用；配置沿用 .env 不再重复问）
 
 ```
-帮我把"打电话给 AI 门卫"这条链路在我本机跑通。我有 Twilio 账号和 LiveKit Cloud 项目。
-1. 装 lk CLI 并 lk cloud auth；把我的 LiveKit Cloud 项目 LIVEKIT_URL/API_KEY/SECRET 写进 .env，
-   VOICE_MODE=realtime、填 OPENAI_API_KEY、通知用 telegram（按 NOTIFY_SETUP.md）。
-2. 指导我在 Twilio 建号码 + Elastic SIP Trunk，origination 指到我 LiveKit Cloud 的 SIP 主机
-   （把主机名告诉我让我在控制台找/确认）。问我要这个号码。
-3. 跑 SIP_INBOUND_NUMBER=<我的号码> ./scripts/setup_sip.sh 建 inbound trunk + dispatch rule；
-   若我的 lk 版本 JSON 字段不一致，按 docs.livekit.io/sip 调整后重试，并把最终用的 JSON 给我。
-4. 起 agent worker（start，连 Cloud）+ web server。让我用手机拨打那个号码实测：
-   AI 是否 1~2s 开口、是否预填了我的来电号码为手机、25s 内我手机是否收到卡片、放行后我电话里是否听到"已放行"。
-5. 把每步命令输出和我要点的地方写清楚；报错先自查再问我。
+帮我把"打电话给 AI 门卫"在我本机跑通（参考仓库 TELEPHONY.md §三）。配置一律沿用现有 .env，
+缺的才问我。我已注册 LiveKit Cloud（有 URL/KEY/SECRET 和 SIP 主机名）和 Twilio
+（已买 +1 号码、已加 Verified Caller ID、已开 China geo 权限、号码已用 TwiML Bin 指到我的 SIP 主机）。
+1. 切换电话模式：把 .env 的 LIVEKIT_URL/API_KEY/SECRET 换成我的 Cloud 三件套
+   （本地 dev 那组留作注释，方便切回）。OPENAI/TELEGRAM/名单/口令等沿用 .env，不要再问。
+2. 装 lk CLI 并认证（lk cloud auth，或直接用 .env 三件套作环境变量）。
+3. 问我要 Twilio 号码，跑 SIP_INBOUND_NUMBER=<号码> ./scripts/setup_sip.sh 建 inbound trunk
+   + dispatch rule；若我的 lk 版本 JSON 字段不一致，按 docs.livekit.io/sip 调整后重试，最终 JSON 给我。
+   用 lk sip inbound list / lk sip dispatch list 验证。
+4. 起 agent worker（python -m visitor_agent.agent start）+ web server。
+5. 让我用已验证的手机拨打那个号码，帮我确认并计时：AI 几秒开口、来电号码是否自动成为手机号、
+   25 秒内 Telegram 是否收到卡片、点放行后电话里是否听到"已放行请进"。
+   注意：若 .env 配了 GUARD_PHONES 且我用的正是那个号，会进"语音数据助手"而非登记——提醒我换号或临时清空再测访客流。
+6. 每步输出和我要点的地方写清楚；报错按 TELEPHONY.md §七排查；最后报"接通→卡片发出"的总秒数。
 ```
 
 ---
