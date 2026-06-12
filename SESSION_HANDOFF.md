@@ -19,10 +19,10 @@ src/visitor_agent/
   session_logic.py 登记大脑 record/complete + 回访画像 + 名单匹配 + 黑白名单 + 放行播报payload（live & sim 共用）
   roster.py       公司名单模糊匹配（汉字+拼音；ROSTER_PATH 开启，默认关）
   access.py       黑白名单精确匹配（车牌/手机；ACCESS_LIST_PATH 开启，默认关）
-  guard_query.py  门卫查询 Agent（OpenAI/Claude 双驱动）
+  guard_query.py  门卫数据助手（OpenAI/Claude 双驱动；多轮 history；count_visits 含放行status）
   notify/         dispatch(多渠道) + telegram(localhost兜底)/discord/wecom + gate(海康/stub) + common(老访客/名单高亮)
   db/             visits(+access_status/room) + call_events；_ensure_columns 增量迁移
-  web/server.py   /voice(启用声音兜底) /qr /dashboard(名单徽标·黑名单禁放行) /admin /confirm(黑名单拒放行) /api/* /token /guard/query；FR-2 approved 推送
+  web/server.py   /voice(启用声音兜底) /qr /dashboard(名单徽标·黑名单禁放行) /ask(对话式数据助手) /admin /confirm(黑名单拒放行) /api/* /token /guard/query(多轮)；FR-2 approved 推送
   sim/run_text.py 离线文本仿真（同一套逻辑，无需电话）
 scripts/setup_sip.sh  电话接入：建 LiveKit 入站 trunk+dispatch（见 TELEPHONY.md）
 tests/  76 个离线单测（沙箱缺 livekit 时 1 个 /token 用例跳过）   scenarios/ 仿真脚本

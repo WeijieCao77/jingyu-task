@@ -36,3 +36,27 @@ def test_list_visits(temp_db):
     temp_db.create_visit({"plate": "沪A12345", "company": "蓝色鲸鱼"}, "x")
     out = guard_query.run_tool("list_visits", {"plate": "沪A12345"})
     assert "沪A12345" in out
+
+
+def test_count_by_released_status(temp_db):
+    from visitor_agent import guard_query
+
+    repo = temp_db
+    repo.create_visit({"plate": "沪A1"}, "s1")
+    repo.create_visit({"plate": "沪A2"}, "s2")
+    repo.mark_confirmed("s2")  # only this one released
+
+    assert '"count": 2' in guard_query.run_tool("count_visits", {})
+    assert '"count": 1' in guard_query.run_tool("count_visits", {"status": "confirmed"})
+    assert '"count": 1' in guard_query.run_tool("count_visits", {"status": "pending"})
+
+
+def test_clean_history_filters_bad_turns():
+    from visitor_agent.guard_query import _clean_history
+
+    h = [{"role": "user", "content": "a"}, {"role": "assistant", "content": "b"},
+         {"role": "system", "content": "x"}, {"role": "user", "content": ""},
+         {"role": "user"}]
+    assert _clean_history(h) == [{"role": "user", "content": "a"},
+                                 {"role": "assistant", "content": "b"}]
+    assert _clean_history(None) == []

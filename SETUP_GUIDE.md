@@ -112,6 +112,14 @@
 若我已挂断则应静默不报错。把 agent 日志里 data_received/approved 那几行发我。
 ```
 
+### 📋 Prompt 3.5 —— 门卫数据助手（对话式查询，无需额外账号）
+```
+起 web server 后我打开 http://localhost:8080/ask（或 /dashboard 右上「🔎 数据查询」）。
+先用 /voice 或 sim --live 造几条访客、放行其中一两条，然后让我在 /ask 里像聊天一样问：
+"这个月有多少辆车被放行？""那本周呢？""找蓝色鲸鱼的有多少人？""什么时段最多？"
+验证：能多轮追问（"那本周呢"会接着上文）、数字对得上。它走 LLM，需要 .env 里的 OPENAI_API_KEY。
+```
+
 ### 📋 Prompt 3.4 —— ☎️ 电话拨号进来（任务第一必交项，需 LiveKit Cloud + Twilio）
 ```
 帮我把"打电话给 AI 门卫"在我本机跑通，完整步骤见仓库 TELEPHONY.md。我有 Twilio 和 LiveKit Cloud。

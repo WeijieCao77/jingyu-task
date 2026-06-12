@@ -219,7 +219,7 @@ def find_recent_visit(plate: str | None = None, phone: str | None = None) -> Vis
 # ----- read helpers for the guard query agent -----
 
 def count_visits(since: datetime | None = None, until: datetime | None = None,
-                 company: str | None = None) -> int:
+                 company: str | None = None, status: str | None = None) -> int:
     with _session() as s:
         stmt = select(func.count()).select_from(Visit)
         if since is not None:
@@ -228,6 +228,8 @@ def count_visits(since: datetime | None = None, until: datetime | None = None,
             stmt = stmt.where(Visit.created_at <= until)
         if company:
             stmt = stmt.where(Visit.company.like(f"%{company}%"))
+        if status:
+            stmt = stmt.where(Visit.status == status)
         return int(s.scalar(stmt) or 0)
 
 

@@ -20,13 +20,15 @@ from .db import repo
 TOOLS = [
     {
         "name": "count_visits",
-        "description": "统计访问车辆数量，可按时间范围和来访单位过滤。返回整数。",
+        "description": "统计访问车辆数量，可按时间范围、来访单位、放行状态过滤。返回整数。"
+                       "问'多少辆被放行/已放行'时 status 传 confirmed；'待核对/未放行'传 pending。",
         "input_schema": {
             "type": "object",
             "properties": {
                 "since_iso": {"type": "string", "description": "起始时间 ISO8601（含），可空"},
                 "until_iso": {"type": "string", "description": "结束时间 ISO8601（含），可空"},
                 "company": {"type": "string", "description": "来访单位关键词，可空"},
+                "status": {"type": "string", "description": "放行状态：confirmed=已放行 / pending=待核对；留空=全部"},
             },
         },
     },
@@ -86,6 +88,7 @@ def run_tool(name: str, args: dict) -> str:
             since=_parse_iso(args.get("since_iso")),
             until=_parse_iso(args.get("until_iso")),
             company=args.get("company"),
+            status=args.get("status") or None,
         )
         return json.dumps({"count": n})
     if name == "list_visits":
@@ -111,14 +114,26 @@ def run_tool(name: str, args: dict) -> str:
 def _system_prompt(cfg) -> str:
     now = datetime.now(timezone.utc).astimezone()
     return (
-        "你是工业园区的门卫数据助手。基于访客登记数据库回答保安的中文提问。"
+        "你是工业园区的门卫数据助手，和保安多轮对话。基于访客登记数据库回答中文提问。"
         f"当前时间是 {now.isoformat()}（{cfg.timezone}）。"
         "需要时间范围时（本周/今天/这个月等）请自行换算成 ISO8601 传给工具。"
-        "用简短中文口语回答，给出具体数字。"
+        "支持追问：结合上文理解'那上个月呢''他呢'这类省略问法。"
+        "用简短中文口语回答，给出具体数字；问不到的礼貌说明。"
     )
 
 
-def _answer_openai(question: str, model: str, max_steps: int) -> str:
+def _clean_history(history: list[dict] | None, max_turns: int = 12) -> list[dict]:
+    """Keep only well-formed user/assistant text turns (for multi-turn context)."""
+    out: list[dict] = []
+    for m in (history or [])[-max_turns:]:
+        role, content = m.get("role"), m.get("content")
+        if role in ("user", "assistant") and isinstance(content, str) and content.strip():
+            out.append({"role": role, "content": content.strip()})
+    return out
+
+
+def _answer_openai(question: str, model: str, max_steps: int,
+                   history: list[dict] | None = None) -> str:
     import json as _json
 
     import openai
@@ -130,10 +145,9 @@ def _answer_openai(question: str, model: str, max_steps: int) -> str:
             "name": t["name"], "description": t["description"], "parameters": t["input_schema"]
         }} for t in TOOLS
     ]
-    messages = [
-        {"role": "system", "content": _system_prompt(cfg)},
-        {"role": "user", "content": question},
-    ]
+    messages = [{"role": "system", "content": _system_prompt(cfg)}]
+    messages += _clean_history(history)
+    messages.append({"role": "user", "content": question})
     for _ in range(max_steps):
         resp = client.chat.completions.create(model=model, messages=messages, tools=tools)
         msg = resp.choices[0].message
@@ -157,12 +171,13 @@ def _answer_openai(question: str, model: str, max_steps: int) -> str:
     return "（查询步数超限，请把问题问得更具体一些。）"
 
 
-def _answer_anthropic(question: str, model: str, max_steps: int) -> str:
+def _answer_anthropic(question: str, model: str, max_steps: int,
+                      history: list[dict] | None = None) -> str:
     import anthropic
 
     cfg = get_settings()
     client = anthropic.Anthropic(api_key=cfg.anthropic_api_key or None)
-    messages: list[dict] = [{"role": "user", "content": question}]
+    messages: list[dict] = _clean_history(history) + [{"role": "user", "content": question}]
     for _ in range(max_steps):
         resp = client.messages.create(
             model=model, max_tokens=1024, system=_system_prompt(cfg),
@@ -180,14 +195,16 @@ def _answer_anthropic(question: str, model: str, max_steps: int) -> str:
     return "（查询步数超限，请把问题问得更具体一些。）"
 
 
-def answer_question(question: str, model: str | None = None, max_steps: int = 5) -> str:
-    """Answer a guard's NL question; uses whichever LLM provider is configured."""
+def answer_question(question: str, history: list[dict] | None = None,
+                    model: str | None = None, max_steps: int = 5) -> str:
+    """Answer a guard's NL question (with optional prior turns for follow-ups);
+    uses whichever LLM provider is configured."""
     cfg = get_settings()
     repo.init_db(cfg.database_url)
     model = model or cfg.llm_model
     if cfg.llm_provider == "anthropic":
-        return _answer_anthropic(question, model, max_steps)
-    return _answer_openai(question, model, max_steps)
+        return _answer_anthropic(question, model, max_steps, history)
+    return _answer_openai(question, model, max_steps, history)
 
 
 def main() -> None:

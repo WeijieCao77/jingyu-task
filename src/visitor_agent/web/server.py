@@ -247,6 +247,7 @@ def root() -> HTMLResponse:
 
 class GuardQuery(BaseModel):
     question: str
+    history: list[dict] | None = None  # prior [{role, content}] turns → follow-ups
 
 
 @app.post("/guard/query")
@@ -254,10 +255,16 @@ def guard_query(q: GuardQuery) -> JSONResponse:
     from ..guard_query import answer_question
 
     try:
-        answer = answer_question(q.question)
+        answer = answer_question(q.question, history=q.history)
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": str(exc)}, status_code=500)
     return JSONResponse({"question": q.question, "answer": answer})
+
+
+@app.get("/ask", response_class=HTMLResponse)
+def ask() -> HTMLResponse:
+    """Guard data-query page: 保安自然语言问数据（本月多少车放行、找哪家多少人、高峰时段…）。"""
+    return HTMLResponse(_ASK_HTML)
 
 
 _DASHBOARD_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
@@ -305,7 +312,8 @@ _DASHBOARD_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
 </style></head><body>
 <header><span class="live"></span><h1>🐳 门卫控制台</h1>
 <span class="sub">收到访客信息 → 核对 → 一键放行</span>
-<a href="/admin" target="_blank">🏆 常客名单</a></header>
+<a href="/ask" target="_blank" style="margin-left:auto">🔎 数据查询</a>
+<a href="/admin" target="_blank" style="margin-left:8px">🏆 常客名单</a></header>
 <div class="wrap">
   <div id="alerts"></div>
   <div class="card">
@@ -506,6 +514,73 @@ btn.onclick=async()=>{ if(!roomName){st.textContent='缺少 room 参数';return;
   }catch(e){st.textContent='接入失败：'+e.message;btn.disabled=false;}
 };
 hang.onclick=async()=>{try{await rm.disconnect();}catch(_){}st.textContent='已挂断';hang.style.display='none';btn.disabled=false;};
+</script></body></html>"""
+
+
+_ASK_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>门卫数据助手</title>
+<style>
+  :root{--bg:#eef1f6;--card:#fff;--ink:#1f2733;--muted:#8a94a6;--accent:#1ea672}
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;font-family:-apple-system,'Segoe UI',Roboto,'PingFang SC',sans-serif;background:var(--bg);
+    color:var(--ink);display:flex;flex-direction:column}
+  header{padding:14px 24px;display:flex;align-items:center;gap:10px;background:#fff;border-bottom:1px solid #e9edf3}
+  header h1{font-size:17px;margin:0} header .sub{color:var(--muted);font-size:12px}
+  header a,header button{margin-left:auto;color:#566;text-decoration:none;font-size:13px;background:#f3f6fb;
+    border:1px solid #e7ecf4;padding:7px 13px;border-radius:999px;cursor:pointer}
+  header a{margin-left:8px}
+  .chat{flex:1;overflow:auto;padding:22px;max-width:780px;width:100%;margin:0 auto}
+  .msg{display:flex;margin:10px 0} .msg.me{justify-content:flex-end}
+  .bub{max-width:80%;padding:11px 15px;border-radius:16px;font-size:15px;line-height:1.65;white-space:pre-wrap}
+  .me .bub{background:var(--accent);color:#fff;border-bottom-right-radius:5px}
+  .ai .bub{background:#fff;color:var(--ink);box-shadow:0 4px 16px rgba(20,30,50,.06);border-bottom-left-radius:5px}
+  .hint{color:var(--muted);font-size:13px;text-align:center;margin:18px 0 8px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:620px;margin:0 auto}
+  .chip{background:#fff;border:1px solid #e7ecf4;color:#48566b;border-radius:999px;padding:8px 14px;
+    font-size:13px;cursor:pointer} .chip:hover{background:#eef3fb}
+  .bar{border-top:1px solid #e9edf3;background:#fff;padding:12px 22px}
+  .row{display:flex;gap:10px;max-width:780px;margin:0 auto}
+  input{flex:1;font-size:15px;padding:13px 16px;border:1px solid #dde3ec;border-radius:12px;outline:none}
+  input:focus{border-color:var(--accent)}
+  .send{border:0;border-radius:12px;background:var(--accent);color:#fff;padding:0 22px;font-size:15px;
+    font-weight:600;cursor:pointer} .send:disabled{opacity:.6}
+  .spin{display:inline-block;width:15px;height:15px;border:2px solid #cfe;border-top-color:var(--accent);
+    border-radius:50%;animation:s .8s linear infinite;vertical-align:-2px} @keyframes s{to{transform:rotate(360deg)}}
+</style></head><body>
+<header><h1>🤖 门卫数据助手</h1><span class="sub">和 AI 对话查访客数据 · 可追问</span>
+<button id="new">＋ 新对话</button><a href="/dashboard">← 控制台</a></header>
+<div class="chat" id="chat">
+  <div id="welcome"><div class="hint">问我任何关于访客数据的问题，支持追问（如"那上个月呢？"）</div>
+  <div class="chips" id="chips"></div></div>
+</div>
+<div class="bar"><div class="row">
+  <input id="q" placeholder="例如：这个月有多少辆车被放行？" autofocus>
+  <button class="send" id="go">发送</button></div></div>
+<script>
+const EX=["这个月有多少辆车被放行？","本周一共多少访问车辆？","这个月找蓝色鲸鱼的有多少人？",
+          "什么时间段访问最多？","张师傅这个月来了几次？","常客前五是谁？"];
+const chat=document.getElementById('chat'),q=document.getElementById('q'),go=document.getElementById('go'),
+      chips=document.getElementById('chips'),welcome=document.getElementById('welcome');
+let history=[];  // [{role:'user'|'assistant', content}]
+chips.innerHTML=EX.map(t=>'<span class="chip">'+t+'</span>').join('');
+chips.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{q.value=c.textContent;send();});
+document.getElementById('new').onclick=()=>{history=[];chat.querySelectorAll('.msg').forEach(m=>m.remove());
+  welcome.style.display='';};
+function bubble(role,text){const m=document.createElement('div');m.className='msg '+(role==='user'?'me':'ai');
+  const b=document.createElement('div');b.className='bub';b.textContent=text;m.appendChild(b);
+  chat.appendChild(m);chat.scrollTop=chat.scrollHeight;return b;}
+async function send(){const question=q.value.trim(); if(!question||go.disabled)return;
+  welcome.style.display='none'; q.value='';
+  bubble('user',question);
+  const b=bubble('ai',''); b.innerHTML='<span class="spin"></span> 正在查…';
+  go.disabled=true;
+  try{const r=await fetch('/guard/query',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({question,history})});
+    const d=await r.json(); const a=d.answer||d.error||'(无结果)';
+    b.textContent=a; history.push({role:'user',content:question}); history.push({role:'assistant',content:a});
+  }catch(e){b.textContent='出错了：'+e.message;} go.disabled=false; q.focus();}
+go.onclick=send; q.addEventListener('keydown',e=>{if(e.key==='Enter')send();});
 </script></body></html>"""
 
 

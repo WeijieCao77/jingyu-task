@@ -51,3 +51,34 @@ def test_notify_none_returns_true(temp_db):
 
     ok = asyncio.run(dispatch.push(get_settings(), {"plate": "沪A1"}, "http://x/confirm?token=t"))
     assert ok is True
+
+
+def test_ask_page_and_query_endpoint(temp_db, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from visitor_agent import guard_query
+    from visitor_agent.web import server as srv
+
+    importlib.reload(srv)
+    client = TestClient(srv.app)
+
+    # conversational query page renders
+    page = client.get("/ask")
+    assert page.status_code == 200 and "门卫数据助手" in page.text
+
+    # endpoint forwards the question + prior turns (history) to the agent
+    seen = {}
+
+    def fake_answer(question, history=None, **kw):
+        seen["q"], seen["h"] = question, history
+        return "本月已放行 12 辆。"
+
+    monkeypatch.setattr(guard_query, "answer_question", fake_answer)
+    monkeypatch.setattr(srv, "answer_question", fake_answer, raising=False)
+
+    body = {"question": "那上个月呢？",
+            "history": [{"role": "user", "content": "这个月放行多少"},
+                        {"role": "assistant", "content": "10 辆"}]}
+    r = client.post("/guard/query", json=body)
+    assert r.status_code == 200 and "已放行" in r.json()["answer"]
+    assert seen["q"] == "那上个月呢？" and len(seen["h"]) == 2
