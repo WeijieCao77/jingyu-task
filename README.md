@@ -21,7 +21,7 @@ flowchart LR
     DB -.-> Q["门卫查询 Agent（自然语言）"]
 ```
 
-选型：**LiveKit Agents**（原生 SIP/打断/并发）+ **realtime speech-to-speech**（默认，提速）/ STT→LLM→TTS pipeline（可回退）；全 OpenAI 单 key，全部 env 可切。理由与对比见 [TELEPHONY.md](TELEPHONY.md)（电话选型）、[FRAMEWORK_RESEARCH.md](FRAMEWORK_RESEARCH.md)、[ARCHITECTURE_AB.md](ARCHITECTURE_AB.md)。
+选型：**LiveKit Agents**（原生 SIP/打断/并发）+ **realtime speech-to-speech**（默认，提速）/ STT→LLM→TTS pipeline（可回退）；全 OpenAI 单 key，全部 env 可切。**每个决策的理由+优势+根因+是否跟模型相关见 [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md)**；另见 [FRAMEWORK_RESEARCH.md](FRAMEWORK_RESEARCH.md)、[ARCHITECTURE_AB.md](ARCHITECTURE_AB.md)、[DESIGN.md](DESIGN.md)。
 
 ## 部署（本地 demo，约 5 分钟）
 

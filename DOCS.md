@@ -30,6 +30,7 @@
 
 | 文档 | 用途 | 读者 | 一句话 |
 |---|---|---|---|
+| **[ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md)** ⭐ | **每个决策：为什么+优势+根因+是否跟模型相关** | 答辩 | 全迭代架构决策记录，附"优势×模型相关性"汇总表 |
 | **[DESIGN.md](DESIGN.md)** | 选型理由 + 证据 + 延迟预算 + 中国落地 + 存储 + 回访 + Serverless | 答辩/工程 | 为什么 Pipeline 不用 s2s、各环节选型、25 秒预算、数据存哪、回访画像 |
 | **[FRAMEWORK_RESEARCH.md](FRAMEWORK_RESEARCH.md)** | 框架市场调研报告 | 答辩/选型 | LiveKit vs Pipecat/TEN/Vapi/Retell/云直连，决策矩阵 + 为什么不用它们 |
 | **[MODELS.md](MODELS.md)** | 模型可换架构 | 你/客户/答辩 | 现在用哪个模型、怎么换、客户可选任意模型（含国内）、加新 provider |
