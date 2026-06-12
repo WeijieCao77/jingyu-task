@@ -7,23 +7,25 @@
 工业园区**语音访客登记**系统：未登记车辆（电话/扫码/浏览器）→ AI 门卫**中文对话**采集（车牌/单位/事由/手机/姓名）→ 推送保安（Telegram/企微/Discord/后台）→ 保安核对放行 → 抬杆。蓝色鲸鱼公司 take-home。
 
 ## 2. 架构（一句话）
-**LiveKit Agents**（电话/打断/并发，不换）+ STT→LLM→TTS **pipeline**（默认，可切 `VOICE_MODE=realtime` speech-to-speech 提速）。**模型全 env 可换**（`LLM_BASE_URL` 可接任意 OpenAI 兼容端点，含国内）。通知**可插拔多渠道**。数据 SQLite/Neon。
+**LiveKit Agents**（电话/打断/并发，不换）+ **realtime speech-to-speech**（默认提速，可 `VOICE_MODE=pipeline` 回退）。电话**拨号进来**=Twilio→LiveKit SIP→自动派发 agent（`TELEPHONY.md`），与扫码/浏览器汇入同一房间。**模型全 env 可换**（`LLM_BASE_URL`）。通知**可插拔多渠道**。黑白名单/公司名单/回访/转人工/FR-2 放行播报全在 `session_logic`，与接入形态无关。数据 SQLite/Neon。
 
 ## 3. 代码地图
 ```
 src/visitor_agent/
-  agent.py        LiveKit worker（电话入口；VOICE_MODE 分支 pipeline/realtime）
+  agent.py        LiveKit worker（电话/扫码/浏览器入口；VOICE_MODE 分支；主叫号预填手机；FR-2 放行播报）
   providers.py    STT/LLM/TTS/realtime 装配（唯一“换模型”点）
   prompts.py      中文门卫 prompt（含 AI 复述确认层 + 转人工 + 名单匹配确认）
   slots.py        槽位 + 车牌/手机规范化（含省份名→简称）
-  session_logic.py 登记大脑 record/complete + 回访画像 + 名单匹配（live & sim 共用）
+  session_logic.py 登记大脑 record/complete + 回访画像 + 名单匹配 + 黑白名单 + 放行播报payload（live & sim 共用）
   roster.py       公司名单模糊匹配（汉字+拼音；ROSTER_PATH 开启，默认关）
+  access.py       黑白名单精确匹配（车牌/手机；ACCESS_LIST_PATH 开启，默认关）
   guard_query.py  门卫查询 Agent（OpenAI/Claude 双驱动）
-  notify/         dispatch(多渠道) + telegram/discord/wecom + gate(海康/stub) + common
-  db/             visits + call_events（回访 recognize、常客 visitor_profiles）
-  web/server.py   /voice /qr /dashboard(简化) /admin /guard_call /confirm /api/* /guard/query
+  notify/         dispatch(多渠道) + telegram(localhost兜底)/discord/wecom + gate(海康/stub) + common(老访客/名单高亮)
+  db/             visits(+access_status/room) + call_events；_ensure_columns 增量迁移
+  web/server.py   /voice(启用声音兜底) /qr /dashboard(名单徽标·黑名单禁放行) /admin /confirm(黑名单拒放行) /api/* /token /guard/query；FR-2 approved 推送
   sim/run_text.py 离线文本仿真（同一套逻辑，无需电话）
-tests/  51 个离线单测（全绿）   scenarios/ 仿真脚本
+scripts/setup_sip.sh  电话接入：建 LiveKit 入站 trunk+dispatch（见 TELEPHONY.md）
+tests/  76 个离线单测（沙箱缺 livekit 时 1 个 /token 用例跳过）   scenarios/ 仿真脚本
 ```
 
 ## 4. 今天已验证 / 状态（截至 v0.22）
@@ -31,7 +33,9 @@ tests/  51 个离线单测（全绿）   scenarios/ 仿真脚本
 - ✅ **本轮已修/已加（v0.22，离线测试 49→74 全绿）**：realtime 合主线且与名单共存（FR-1）+ realtime 崩溃修复（P0-4）；**黑白名单**（NEW-2）；通知加**老访客/黑白名单**信息（NEW-1）；**放行后 AI 语音通知访客**（FR-2）；Telegram localhost 按钮兜底（①）；`/voice` 自动播放兜底（⑥）；测试隔离（②）。
 - ⏳ **待用户真机验证（v0.22 新增项）**：realtime+名单同开、黑白名单命中卡片/徽标、FR-2 放行后访客是否听到 AI 播报、Telegram 兜底。**prompt 见 §9**。
 - ⏳ **手机点放行链接**：用 Telegram 时 `PUBLIC_BASE_URL` 不能 localhost（已修+文档）；用户实测 Tailscale IP `http://100.67.103.51:8080` 可用。
-- 沙箱说明：这里 2 个 `/token` 用例失败只因未装 livekit 运行时包；装了即 75 全绿。
+- ✅ **v0.23 用户决策已落地**：默认 `VOICE_MODE=realtime`；**黑名单登记不放行**（系统拒绝放行）；白名单仍需保安确认（不自动放行）。
+- ⏳ **v0.23 电话接入（任务第一必交项）**：`scripts/setup_sip.sh` + `TELEPHONY.md` 就绪（Twilio→LiveKit SIP→自动派发 agent；主叫号预填手机）。**待用户用 Twilio+LiveKit Cloud 真机拨打**（prompt 见 §9-E + `TELEPHONY.md` §六）。
+- 沙箱说明：这里 1 个 `/token` 用例失败只因未装 livekit 运行时包；装了即 76 全绿。Notion/YouTube 受出网白名单限制读不到（任务全文已由用户粘贴据此研究）。
 
 ## 5. 分支 / PR
 | 分支 | 状态 | 内容 |
@@ -84,8 +88,18 @@ tests/  51 个离线单测（全绿）   scenarios/ 仿真脚本
 跑 sim --live。验证：手机仍收到卡片（这次没有按钮、但正文有"👉 确认放行：<链接>"），不再整条消息丢失。
 ```
 
-**D. 白名单自动放行（可选，需你决定要不要开）**
+**D. 黑名单"登记不放行"（NEW）**
 ```
-若想让白名单常客免人工：.env 设 AUTO_PASS_WHITELIST=true，用白名单车牌走一遍，
-验证后台直接变"已放行"、抬杆日志出现"白名单自动"。不想要就保持 false（默认仍需保安点放行）。
+.env 设 ACCESS_LIST_PATH=access.example.json，用黑名单车牌(沪A00000)走一遍登记。
+验证：① 卡片/后台显示 ⛔黑名单 ② 后台该行是「⛔禁止放行」而非放行按钮 ③ 点确认链接显示"禁止放行"、
+栏杆不抬。白名单(沪A12345)则正常显示 ✅、仍需保安点放行（不自动）。
+```
+
+**E. ☎️ 电话拨号进来（任务第一必交项，需 Twilio + LiveKit Cloud）**
+> 完整步骤+排错见 `TELEPHONY.md`；给本地 CC 的 prompt 见 `TELEPHONY.md` §六。
+```
+我有 Twilio 号码和 LiveKit Cloud 项目。把 .env 的 LIVEKIT_URL 换成 Cloud（wss://<proj>.livekit.cloud）、
+VOICE_MODE=realtime、NOTIFY_CHANNEL=telegram。在 Twilio 把号码 origination 指到我的 LiveKit SIP 主机，
+跑 SIP_INBOUND_NUMBER=<号码> ./scripts/setup_sip.sh，起 agent worker(start)+web。
+我用手机拨打那个号码：验证 AI 1~2s 开口、来电号码被预填为手机、25s 内手机收到卡片、放行后电话里听到"已放行"。
 ```

@@ -157,10 +157,22 @@
   - **DB 健壮性**：新增 `visits.access_status` / `visits.room` 列 + `_ensure_columns()` 轻量增量迁移（create_all 不会给已存在表加列），老 SQLite 文件不再 `no such column`。
 - **计划变更**：用户真机 A/B 确认 realtime 首句 ≈1.4s 明显更快 → realtime 从"实验分支"提为**主线可选模式**（默认仍 pipeline，待客户定默认）。黑白名单从计划池/预备方案**提前实现**。企微自建应用按钮回调仍留作生产形态（`WECHAT_PLAN.md` 方案 B）。
 
+## 2026-06-12
+
+### v0.23 — 电话接入（拨号进来）+ realtime 设为默认 + 黑名单"登记不放行"
+> 用户决策：默认 realtime；园区已登记车牌靠海康自动放行，**我们这边一律保安确认**（白名单不自动放行）；**黑名单登记不放行**。新增**拨打手机号**接入（任务第一必交项）。
+- **改动**：
+  - **电话接入（核心需求）**：`scripts/setup_sip.sh` 一键建 LiveKit 入站 trunk + dispatch rule（独立房间=天然并发）；Twilio→LiveKit SIP→房间→**agent 自动派发**（无需 agent_name）。电话只是又一接入形态，汇入同一房间/agent，复述确认/名单/黑白名单/回访/转人工/FR-2 全复用。`TELEPHONY.md`（架构+选型+Twilio步骤+国内阿里云替代+QClaw个人微信+25s+排错+本地CC prompt）。
+  - **主叫号预填手机**：SIP 来电的 caller-ID(`sip.phoneNumber`)即访客手机 → 自动预填手机槽，省一问 + 免听错 + 立即触发回访/黑白名单匹配（guarded，浏览器/扫码不受影响）。
+  - **默认 `VOICE_MODE=realtime`**（真机更快）；pipeline 一行回退。更新 config/.env/test/ARCHITECTURE_AB。
+  - **黑名单登记不放行**：两条放行路径（`/confirm` 链接 + `/api/confirm` 后台）对黑名单**拒绝放行**（链接显示 ⛔禁止放行、后台返 403），绝不抬杆；Dashboard 黑名单行显示「⛔禁止放行」替代放行按钮。
+  - README 一页内加电话路径/realtime 默认/黑白名单+FR-2 加分项；`.env.example` 加 `SIP_INBOUND_NUMBER`；`WECHAT_PLAN` 加 QClaw/OpenClaw 个人微信路径。
+- **计划变更**：电话从计划池**落地为必交主线**；白名单自动放行**默认关并定为园区策略**（上游海康管已登记车牌，访客侧一律人工确认）；个人微信(QClaw)纳入选型对照。realtime 定为默认。
+
 ---
 
 ## 待办 / 下一步候选（计划池）
-- [ ] 真机电话端到端联调 + 25 秒计时（Twilio SIP，用户本机）
+- [~] 电话接入：**代码+脚本+文档已就绪（v0.23）** → 待用户用 Twilio+LiveKit Cloud 真机拨打验证 + 25 秒计时
 - [ ] 中文音色 A/B：OpenAI TTS vs MiniMax / Azure zh-CN / Qwen3-TTS
 - [ ] 架构 A/B：TEN Framework / Pipecat 对照
 - [ ] 企微自建应用模板卡片（按钮回调）作为生产形态

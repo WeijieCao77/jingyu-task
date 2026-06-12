@@ -125,6 +125,17 @@
 
 决策：realtime 真机更快 → 提为主线可选模式（默认仍 pipeline，待客户定默认）；黑白名单从计划池提前实现。真机验证 prompt 见 `SESSION_HANDOFF.md`（realtime+名单同开、黑白名单、FR-2 放行播报）。
 
+## 第十轮（用户决策 + 电话接入；v0.23）
+
+用户拍板 + 提核心新需求"拨打手机号"。本轮（测试维持 75 绿）：
+
+- ✅ **默认 `VOICE_MODE=realtime`**（真机更快）；pipeline 一行回退。
+- ✅ **黑名单"登记不放行"**：两条放行路径对黑名单拒绝放行 + Dashboard「⛔禁止放行」；白名单仍需保安确认（园区策略：海康管已登记车牌，访客侧一律人工）。
+- ✅ **电话接入（任务第一必交项）**：`scripts/setup_sip.sh`（LiveKit 入站 trunk+dispatch）+ `TELEPHONY.md`（Twilio→LiveKit SIP→自动派发 agent；国内阿里云替代；QClaw 个人微信；选型/排错/prompt）；agent **主叫号预填手机**。电话汇入同一房间/agent，全部能力复用。
+- ✅ 选型研究：QClaw/OpenClaw（腾讯个人微信）、LiveKit SIP vs Vapi/Retell（不外包被考察能力）写进文档。
+- 限制：电话链路需 LiveKit Cloud + Twilio（用户账号/钱），沙箱无法真跑 → 代码/脚本/文档就绪，待用户真机（prompt 见 `TELEPHONY.md` §六 + `SESSION_HANDOFF.md`）。
+- 说明：Notion/YouTube 受沙箱出网白名单限制（notion.site/notion.so/youtube 未在 allowlist）无法读取；任务全文已由用户粘贴、据此研究。
+
 ## 怎么快速验收（建议顺序）
 
 1. `PYTHONPATH=src pytest -q` → 应 16 passed。
