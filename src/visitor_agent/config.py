@@ -90,6 +90,14 @@ class Settings(BaseSettings):
     # 白名单是否自动放行（跳过保安、直接抬杆）。默认 False=仍由保安点放行，只是卡片标注。
     auto_pass_whitelist: bool = False
 
+    # ---- Guard-only access (数据查询/后台仅门卫可用，访客不能查) ----
+    # 网页端：设了 GUARD_ACCESS_KEY 后，/dashboard /ask /admin 及数据 API 需先在 /login
+    #   输入这个口令（留空=不设防，demo 方便）。
+    guard_access_key: str = ""
+    # 电话端：门卫手机号（逗号分隔 1~2 个）。来电号码在此名单=门卫，转「语音数据助手」问数据；
+    #   否则=访客，走登记。留空=所有来电都按访客登记。
+    guard_phones: str = ""
+
     # ---- Misc ----
     timezone: str = "Asia/Shanghai"
 

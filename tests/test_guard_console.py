@@ -53,6 +53,36 @@ def test_notify_none_returns_true(temp_db):
     assert ok is True
 
 
+def test_guard_access_key_gate(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    db_url = f"sqlite:///{tmp_path}/v.db"
+    monkeypatch.setenv("DATABASE_URL", db_url)
+    monkeypatch.setenv("GUARD_ACCESS_KEY", "s3cret")
+    from visitor_agent import config
+
+    config.get_settings.cache_clear()
+    from visitor_agent.db import repo
+
+    repo.init_db(db_url)
+    from visitor_agent.web import server as srv
+
+    importlib.reload(srv)
+    client = TestClient(srv.app)
+
+    assert client.get("/voice").status_code == 200            # visitor page public
+    r = client.get("/dashboard", follow_redirects=False)       # guard page → login
+    assert r.status_code == 303 and "/login" in r.headers["location"]
+    assert client.get("/api/visits").status_code == 401        # guard API blocked
+    assert client.get("/api/visits", headers={"X-Guard-Key": "s3cret"}).status_code == 200
+    # wrong key → bounced; correct key → cookie set, then dashboard works
+    assert "/login" in client.get("/login/set", params={"key": "nope"},
+                                  follow_redirects=False).headers["location"]
+    client.get("/login/set", params={"key": "s3cret"}, follow_redirects=False)
+    assert client.get("/dashboard").status_code == 200
+    config.get_settings.cache_clear()
+
+
 def test_api_query_structured(temp_db):
     from fastapi.testclient import TestClient
 

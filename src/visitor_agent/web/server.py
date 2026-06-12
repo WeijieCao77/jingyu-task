@@ -16,8 +16,13 @@ import asyncio
 import json
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Query
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    StreamingResponse,
+)
 from pydantic import BaseModel
 
 from ..config import get_settings
@@ -32,6 +37,49 @@ async def _lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Visitor Agent — Confirm & Query", lifespan=_lifespan)
+
+
+# Guard-only surfaces (data + console). Visitor pages (/voice /qr /token) and the
+# tokenized /confirm link stay public. Gate is OFF unless GUARD_ACCESS_KEY is set.
+_GUARD_PREFIXES = (
+    "/dashboard", "/ask", "/admin", "/guard_call",
+    "/api/visits", "/api/profiles", "/api/query", "/api/confirm",
+    "/guard/query", "/events/stream",
+)
+
+
+@app.middleware("http")
+async def _guard_gate(request: Request, call_next):
+    cfg = get_settings()
+    if cfg.guard_access_key:
+        path = request.url.path
+        if path == "/" or any(path == p or path.startswith(p) for p in _GUARD_PREFIXES):
+            supplied = (
+                request.cookies.get("guard_key")
+                or request.headers.get("x-guard-key")
+                or request.query_params.get("key")
+            )
+            if supplied != cfg.guard_access_key:
+                if path.startswith(("/api", "/guard/", "/events")):
+                    return JSONResponse({"error": "unauthorized"}, status_code=401)
+                return RedirectResponse(f"/login?next={path}", status_code=303)
+    return await call_next(request)
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page() -> HTMLResponse:
+    return HTMLResponse(_LOGIN_HTML)
+
+
+@app.get("/login/set")
+def login_set(key: str = "", next: str = "/dashboard"):
+    """Set the guard cookie after the login form (GET keeps it dependency-free)."""
+    cfg = get_settings()
+    if cfg.guard_access_key and key != cfg.guard_access_key:
+        return RedirectResponse("/login?e=1", status_code=303)
+    resp = RedirectResponse(next or "/dashboard", status_code=303)
+    resp.set_cookie("guard_key", key, httponly=True, samesite="lax", max_age=86400 * 30)
+    return resp
 
 
 def _page(title: str, body: str, color: str = "#2e7d32") -> HTMLResponse:
@@ -711,6 +759,26 @@ async function runQuery(){
   }catch(e){document.getElementById('rows').innerHTML='<tr><td colspan=6 style="color:#c62828">查询出错：'+e.message+'</td></tr>';}
 }
 </script></body></html>"""
+
+
+_LOGIN_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>门卫登录</title>
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+  font-family:-apple-system,'Segoe UI','PingFang SC',sans-serif;background:linear-gradient(160deg,#2b6a5a,#243b66)}
+  .box{background:#fff;border-radius:18px;box-shadow:0 16px 50px rgba(0,0,0,.25);padding:34px 36px;width:320px;text-align:center}
+  h1{font-size:19px;margin:0 0 4px} p{color:#8a94a6;font-size:13px;margin:0 0 18px}
+  input{width:100%;font-size:16px;padding:13px 15px;border:1px solid #dde3ec;border-radius:11px;outline:none}
+  input:focus{border-color:#1ea672} button{width:100%;margin-top:12px;border:0;border-radius:11px;background:#1ea672;
+  color:#fff;font-size:16px;font-weight:600;padding:13px;cursor:pointer}
+  .err{color:#c62828;font-size:13px;margin-top:10px;display:none}</style></head>
+<body><div class="box"><h1>🐳 门卫登录</h1><p>仅门卫可访问数据后台</p>
+<form action="/login/set" method="get">
+  <input type="password" name="key" placeholder="门卫口令" autofocus>
+  <input type="hidden" name="next" id="next" value="/dashboard"><button>进入</button>
+</form><div class="err" id="err">口令不对，请重试</div>
+<script>const qs=new URLSearchParams(location.search);const n=qs.get('next');
+if(n)document.getElementById('next').value=n; if(qs.get('e'))document.getElementById('err').style.display='block';</script>
+</div></body></html>"""
 
 
 def main() -> None:
