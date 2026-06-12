@@ -120,6 +120,88 @@ class VisitorAgent(Agent):
         return self._reg.request_human(reason=reason)
 
 
+class GuardQueryAgent(Agent):
+    """Voice data assistant for a guard who CALLS IN to query (caller-id on the
+    GUARD_PHONES whitelist). Exposes the same safe, read-only tools as the
+    text/console guard agent — the LLM picks a tool and voices the answer. No
+    registration, no gate; a guard can't accidentally register a visitor."""
+
+    def __init__(self) -> None:
+        from .guard_query import _system_prompt
+
+        super().__init__(
+            instructions=_system_prompt(get_settings())
+            + " 这是电话语音对话，请用简短中文口语回答，数字念清楚，必要时主动追问澄清。"
+        )
+
+    @function_tool()
+    async def count_visits(
+        self, context: RunContext,  # noqa: ARG002
+        since_iso: str | None = None, until_iso: str | None = None,
+        company: str | None = None, status: str | None = None,
+    ) -> str:
+        """统计访问车辆数。可按时间(ISO8601)、来访单位、放行状态过滤；
+        status：confirmed=已放行 / pending=待核对 / 空=全部。"""
+        from .guard_query import run_tool
+
+        return run_tool("count_visits", {"since_iso": since_iso, "until_iso": until_iso,
+                                         "company": company, "status": status})
+
+    @function_tool()
+    async def list_visits(
+        self, context: RunContext,  # noqa: ARG002
+        plate: str | None = None, phone: str | None = None,
+        company: str | None = None, limit: int | None = None,
+    ) -> str:
+        """按车牌/手机号/来访单位列出访问记录（最近优先）。"""
+        from .guard_query import run_tool
+
+        return run_tool("list_visits", {"plate": plate, "phone": phone,
+                                        "company": company, "limit": limit})
+
+    @function_tool()
+    async def busiest_hours(
+        self, context: RunContext, since_iso: str | None = None  # noqa: ARG002
+    ) -> str:
+        """各小时(0-23)的访问次数直方图，判断高峰时段。"""
+        from .guard_query import run_tool
+
+        return run_tool("busiest_hours", {"since_iso": since_iso})
+
+    @function_tool()
+    async def frequent_visitors(
+        self, context: RunContext,  # noqa: ARG002
+        min_visits: int | None = None, limit: int | None = None,
+    ) -> str:
+        """常客名单/访客画像（按人聚合）：次数、车牌、常去单位、姓名、最近一次。"""
+        from .guard_query import run_tool
+
+        return run_tool("frequent_visitors", {"min_visits": min_visits, "limit": limit})
+
+
+async def _decide_guard(ctx: JobContext, cfg) -> bool:
+    """True if the caller's number is on GUARD_PHONES → route to the voice data
+    assistant instead of visitor registration. Only consulted when GUARD_PHONES
+    is set, so the default (no whitelist) leaves every call as a visitor — zero
+    behaviour change. Waits briefly for the caller participant to appear."""
+    from .slots import normalize_phone
+
+    guard_set = {normalize_phone(x) for x in cfg.guard_phones.split(",") if x.strip()}
+    guard_set.discard(None)
+    if not guard_set:
+        return False
+    for _ in range(20):  # up to ~2s
+        parts = list(getattr(ctx.room, "remote_participants", {}).values())
+        if parts:
+            for p in parts:
+                num = (getattr(p, "attributes", None) or {}).get("sip.phoneNumber")
+                if num and normalize_phone(num) in guard_set:
+                    return True
+            return False  # a caller is present but not a whitelisted guard
+        await asyncio.sleep(0.1)
+    return False
+
+
 def _make_event_sink(call_id: str):
     """Persist dashboard events; never let a logging error break the call."""
 
@@ -146,20 +228,30 @@ async def entrypoint(ctx: JobContext) -> None:
 
     call_id = ctx.room.name or "call"
     sink = _make_event_sink(call_id)
-    sink("call_started", None, f"来电接入（{call_id}）", None)
 
-    from .access import make_access_checker
-    from .roster import make_matcher
+    # A whitelisted guard phoning in goes to the voice DATA assistant (query),
+    # not visitor registration. Default (no GUARD_PHONES) → always a visitor.
+    is_guard = await _decide_guard(ctx, cfg) if cfg.guard_phones else False
 
-    reg = RegistrationSession(
-        notifier=LiveNotifier(cfg, room=ctx.room.name),
-        lookup_returning=make_db_lookup(),
-        tz=cfg.timezone,
-        event_sink=sink,
-        roster_match=make_matcher(cfg.roster_path, cfg.roster_threshold),
-        access_check=make_access_checker(cfg.access_list_path),
-    )
-    agent = VisitorAgent(reg)
+    if is_guard:
+        sink("call_started", None, f"门卫数据查询来电（{call_id}）", None)
+        logger.info("guard data-query caller")
+        reg = None
+        agent = GuardQueryAgent()
+    else:
+        sink("call_started", None, f"来电接入（{call_id}）", None)
+        from .access import make_access_checker
+        from .roster import make_matcher
+
+        reg = RegistrationSession(
+            notifier=LiveNotifier(cfg, room=ctx.room.name),
+            lookup_returning=make_db_lookup(),
+            tz=cfg.timezone,
+            event_sink=sink,
+            roster_match=make_matcher(cfg.roster_path, cfg.roster_threshold),
+            access_check=make_access_checker(cfg.access_list_path),
+        )
+        agent = VisitorAgent(reg)
 
     if cfg.voice_mode == "realtime":
         # Speech-to-speech: one realtime model replaces STT+LLM+TTS (lowest
@@ -190,30 +282,7 @@ async def entrypoint(ctx: JobContext) -> None:
             min_endpointing_delay=cfg.min_endpointing_delay,
         )
 
-    def _prefill_caller_phone(participant) -> None:  # noqa: ANN001
-        """For a SIP/phone call the dialing number IS the visitor's mobile — use
-        the caller-ID as the phone so we don't have to ask or risk mis-hearing it
-        (and returning-visitor + blacklist/whitelist checks fire immediately)."""
-        try:
-            attrs = getattr(participant, "attributes", None) or {}
-            num = attrs.get("sip.phoneNumber") or attrs.get("sip.from")
-            if not num or reg.info.phone:
-                return
-            from .slots import normalize_phone
-
-            phone = normalize_phone(num)
-            if phone:
-                reg.record(phone=phone)
-                sink("slot", None, f"主叫号码已预填手机：{phone}", reg.info.to_dict())
-                logger.info("prefilled visitor phone from SIP caller id")
-        except Exception:  # noqa: BLE001
-            logger.exception("caller-id prefill error")
-
-    # A SIP caller may already be in the room at entrypoint — prefill now.
-    for _p in list(getattr(ctx.room, "remote_participants", {}).values()):
-        _prefill_caller_phone(_p)
-
-    # Stream the live transcript to the dashboard (final turns only).
+    # Stream the live transcript to the dashboard (both visitor + guard-query).
     @session.on("conversation_item_added")
     def _on_item(ev) -> None:  # noqa: ANN001
         try:
@@ -225,64 +294,85 @@ async def entrypoint(ctx: JobContext) -> None:
         except Exception:  # noqa: BLE001
             logger.exception("transcript log error")
 
-    # Gate approved (FR-2): the web confirm handler sends a {"type":"approved"}
-    # data message to this room when the guard releases the barrier. The AI then
-    # tells the visitor it's done — closing the loop on the live call. Best-effort:
-    # the visitor may already have hung up.
-    @ctx.room.on("data_received")
-    def _on_data(*args) -> None:  # noqa: ANN002 — sig varies by livekit version
-        # 1.x emits a single DataPacket; older emits (data, participant, ...).
-        # args[0] is the packet/bytes either way; .data unwraps a DataPacket.
-        try:
-            packet = args[0] if args else None
-            raw = getattr(packet, "data", packet)
-            msg = json.loads(bytes(raw).decode("utf-8"))
-        except Exception:  # noqa: BLE001
-            return
-        if msg.get("type") != "approved":
-            return
-        sink("approved", None, "保安已放行，AI 通知访客", None)
-
-        async def _announce() -> None:
+    # --- visitor-only wiring (skipped for a guard data-query call) ---
+    if not is_guard:
+        def _prefill_caller_phone(participant) -> None:  # noqa: ANN001
+            """For a SIP/phone call the dialing number IS the visitor's mobile —
+            use caller-ID as the phone so we don't ask or risk mis-hearing it (and
+            returning + blacklist/whitelist checks fire immediately)."""
             try:
-                await _speak(session, cfg, "好的，已经为您放行，请进，栏杆已经抬起，祝您一路顺利！")
+                attrs = getattr(participant, "attributes", None) or {}
+                num = attrs.get("sip.phoneNumber") or attrs.get("sip.from")
+                if not num or reg.info.phone:
+                    return
+                from .slots import normalize_phone
+
+                phone = normalize_phone(num)
+                if phone:
+                    reg.record(phone=phone)
+                    sink("slot", None, f"主叫号码已预填手机：{phone}", reg.info.to_dict())
+                    logger.info("prefilled visitor phone from SIP caller id")
             except Exception:  # noqa: BLE001
-                logger.exception("approved announce error")
+                logger.exception("caller-id prefill error")
 
-        asyncio.create_task(_announce())
+        # A SIP caller may already be in the room at entrypoint — prefill now.
+        for _p in list(getattr(ctx.room, "remote_participants", {}).values()):
+            _prefill_caller_phone(_p)
 
-    # Human takeover: when a guard joins the same room (identity starts with
-    # "guard"), the AI hands off — says a short line, then leaves the room so the
-    # guard and visitor talk directly. Works for browser/QR and phone alike,
-    # because all access modes share one LiveKit room.
-    @ctx.room.on("participant_connected")
-    def _on_participant(participant) -> None:  # noqa: ANN001
-        identity = getattr(participant, "identity", "") or ""
-        if not identity.startswith("guard"):
-            _prefill_caller_phone(participant)  # SIP caller joined → prefill phone
-            return
-        sink("human_joined", None, f"保安已接入通话（{identity}）", None)
-
-        async def _handoff() -> None:
+        # Gate approved (FR-2): web confirm sends {"type":"approved"} → AI tells
+        # the visitor. Best-effort — the visitor may already have hung up.
+        @ctx.room.on("data_received")
+        def _on_data(*args) -> None:  # noqa: ANN002 — sig varies by livekit version
             try:
-                await _speak(session, cfg, "门卫师傅来了，由他来跟您说，再见。",
-                             allow_interruptions=False)
+                packet = args[0] if args else None
+                raw = getattr(packet, "data", packet)
+                msg = json.loads(bytes(raw).decode("utf-8"))
             except Exception:  # noqa: BLE001
-                logger.exception("handoff say error")
-            finally:
+                return
+            if msg.get("type") != "approved":
+                return
+            sink("approved", None, "保安已放行，AI 通知访客", None)
+
+            async def _announce() -> None:
                 try:
-                    await session.aclose()  # AI leaves; guard + visitor remain
+                    await _speak(session, cfg, "好的，已经为您放行，请进，栏杆已经抬起，祝您一路顺利！")
                 except Exception:  # noqa: BLE001
-                    logger.exception("handoff aclose error")
+                    logger.exception("approved announce error")
 
-        asyncio.create_task(_handoff())
+            asyncio.create_task(_announce())
+
+        # Human takeover: a guard joining (identity 'guard*') makes the AI hand off.
+        @ctx.room.on("participant_connected")
+        def _on_participant(participant) -> None:  # noqa: ANN001
+            identity = getattr(participant, "identity", "") or ""
+            if not identity.startswith("guard"):
+                _prefill_caller_phone(participant)  # SIP caller joined → prefill
+                return
+            sink("human_joined", None, f"保安已接入通话（{identity}）", None)
+
+            async def _handoff() -> None:
+                try:
+                    await _speak(session, cfg, "门卫师傅来了，由他来跟您说，再见。",
+                                 allow_interruptions=False)
+                except Exception:  # noqa: BLE001
+                    logger.exception("handoff say error")
+                finally:
+                    try:
+                        await session.aclose()  # AI leaves; guard + visitor remain
+                    except Exception:  # noqa: BLE001
+                        logger.exception("handoff aclose error")
+
+            asyncio.create_task(_handoff())
 
     await session.start(agent=agent, room=ctx.room)
 
-    # Agent speaks first — this is when the 25-second clock starts. In realtime
-    # mode there's no standalone TTS to say() a fixed string, so _speak() asks the
-    # model to voice the greeting instead (pipeline still say()s it verbatim).
-    await _speak(session, cfg, GREETING, allow_interruptions=True)
+    # Agent speaks first — the 25-second clock starts here. realtime can't say() a
+    # fixed string, so _speak() asks the model to voice it; pipeline say()s it.
+    greeting = (
+        "门卫您好，您想查什么？比如今天放行了多少辆车、最近哪个时段最忙。"
+        if is_guard else GREETING
+    )
+    await _speak(session, cfg, greeting, allow_interruptions=True)
 
 
 def main() -> None:
