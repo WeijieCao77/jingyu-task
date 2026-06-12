@@ -190,6 +190,29 @@ async def entrypoint(ctx: JobContext) -> None:
             min_endpointing_delay=cfg.min_endpointing_delay,
         )
 
+    def _prefill_caller_phone(participant) -> None:  # noqa: ANN001
+        """For a SIP/phone call the dialing number IS the visitor's mobile — use
+        the caller-ID as the phone so we don't have to ask or risk mis-hearing it
+        (and returning-visitor + blacklist/whitelist checks fire immediately)."""
+        try:
+            attrs = getattr(participant, "attributes", None) or {}
+            num = attrs.get("sip.phoneNumber") or attrs.get("sip.from")
+            if not num or reg.info.phone:
+                return
+            from .slots import normalize_phone
+
+            phone = normalize_phone(num)
+            if phone:
+                reg.record(phone=phone)
+                sink("slot", None, f"主叫号码已预填手机：{phone}", reg.info.to_dict())
+                logger.info("prefilled visitor phone from SIP caller id")
+        except Exception:  # noqa: BLE001
+            logger.exception("caller-id prefill error")
+
+    # A SIP caller may already be in the room at entrypoint — prefill now.
+    for _p in list(getattr(ctx.room, "remote_participants", {}).values()):
+        _prefill_caller_phone(_p)
+
     # Stream the live transcript to the dashboard (final turns only).
     @session.on("conversation_item_added")
     def _on_item(ev) -> None:  # noqa: ANN001
@@ -236,6 +259,7 @@ async def entrypoint(ctx: JobContext) -> None:
     def _on_participant(participant) -> None:  # noqa: ANN001
         identity = getattr(participant, "identity", "") or ""
         if not identity.startswith("guard"):
+            _prefill_caller_phone(participant)  # SIP caller joined → prefill phone
             return
         sink("human_joined", None, f"保安已接入通话（{identity}）", None)
 
