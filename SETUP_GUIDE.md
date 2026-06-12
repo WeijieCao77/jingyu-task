@@ -149,6 +149,7 @@
 - **电话接通没人说话** → `LIVEKIT_URL` 必须是 **Cloud**（不是本地 dev）；agent worker 要在跑。
 - **首句慢/超 25s** → 确认 `VOICE_MODE=realtime` 且 key 有 gpt-realtime 权限。
 - **黑名单还能放行？** → 确认 `ACCESS_LIST_PATH` 指对、车牌在黑名单里（系统会拒绝放行）。
+- **每次测试数据像被清空 / 回访识别不到老访客** → 原因是 SQLite 相对路径随你启动目录变。现已**自动锚定项目根目录**，agent 和 web 用同一个文件；启动日志会打印 `SQLite database at <绝对路径>`，确认两个进程打印的是同一个。想彻底稳妥就在 `.env` 填**绝对路径**或用 Neon Postgres。**备份**=直接复制那个 `.db` 文件。
 - **Windows / ARM64 / 无 Docker** → 一律照 `SMOKE_CHECK.md §C5`。
 
 ---

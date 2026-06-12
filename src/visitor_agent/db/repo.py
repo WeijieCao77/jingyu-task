@@ -8,8 +8,10 @@ same database, so a SQLite file works for a single-host demo and a Postgres URL
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.engine import Engine
@@ -18,8 +20,30 @@ from sqlalchemy.orm import Session, sessionmaker
 from ..config import get_settings
 from .models import Base, CallEvent, Visit
 
+logger = logging.getLogger("visitor_agent.repo")
+
 _engine: Engine | None = None
 _Session: sessionmaker[Session] | None = None
+
+
+def _resolve_sqlite_url(url: str) -> str:
+    """Anchor a *relative* SQLite path to the project root so the agent worker
+    and the web process — launched from any working directory, on any run —
+    share ONE database file. Without this, 'sqlite:///./data/visits.db' resolves
+    against each process's CWD, so data appears to 'reset' between runs and the
+    two processes can even read different files. Absolute paths / Postgres URLs
+    pass through unchanged."""
+    prefix = "sqlite:///"
+    if not url.startswith(prefix):
+        return url
+    raw = url[len(prefix):]
+    if not raw or raw.startswith("/") or Path(raw).is_absolute():
+        return url
+    try:
+        root = Path(__file__).resolve().parents[3]  # <root>/src/visitor_agent/db/repo.py
+    except IndexError:
+        root = Path.cwd()
+    return prefix + str((root / raw).resolve())
 
 
 def _ensure_sqlite_dir(url: str) -> None:
@@ -34,7 +58,9 @@ def _ensure_sqlite_dir(url: str) -> None:
 def init_db(database_url: str | None = None) -> Engine:
     """Create the engine + tables (idempotent). Safe to call from any process."""
     global _engine, _Session
-    url = database_url or get_settings().database_url
+    url = _resolve_sqlite_url(database_url or get_settings().database_url)
+    if url.startswith("sqlite"):
+        logger.info("SQLite database at %s (persists across restarts)", url[len("sqlite:///"):])
     _ensure_sqlite_dir(url)
     connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
     _engine = create_engine(url, connect_args=connect_args, future=True)

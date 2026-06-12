@@ -16,6 +16,19 @@ def temp_db(tmp_path, monkeypatch):
     return repo
 
 
+def test_resolve_sqlite_url_anchors_relative():
+    from pathlib import Path
+
+    from visitor_agent.db.repo import _resolve_sqlite_url
+
+    out = _resolve_sqlite_url("sqlite:///./data/visits.db")
+    p = out[len("sqlite:///"):]
+    assert Path(p).is_absolute() and p.endswith("visits.db")  # CWD-independent now
+    # already-absolute + non-sqlite pass through unchanged
+    assert _resolve_sqlite_url("sqlite:////abs/x.db") == "sqlite:////abs/x.db"
+    assert _resolve_sqlite_url("postgresql://u@h/db") == "postgresql://u@h/db"
+
+
 def test_create_get_confirm(temp_db):
     repo = temp_db
     info = {
