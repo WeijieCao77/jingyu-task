@@ -254,6 +254,30 @@ def recent_visits(limit: int = 30) -> list[Visit]:
         )
 
 
+def query_visits(since: datetime | None = None, until: datetime | None = None,
+                 company: str | None = None, plate: str | None = None,
+                 phone: str | None = None, status: str | None = None,
+                 limit: int = 50) -> list[Visit]:
+    """Deterministic structured search (powers the filter UI / API) — every field
+    is an optional, parameterized filter. Newest first."""
+    with _session() as s:
+        stmt = select(Visit)
+        if since is not None:
+            stmt = stmt.where(Visit.created_at >= since)
+        if until is not None:
+            stmt = stmt.where(Visit.created_at <= until)
+        if company:
+            stmt = stmt.where(Visit.company.like(f"%{company}%"))
+        if plate:
+            stmt = stmt.where(Visit.plate.like(f"%{plate}%"))
+        if phone:
+            stmt = stmt.where(Visit.phone.like(f"%{phone}%"))
+        if status:
+            stmt = stmt.where(Visit.status == status)
+        stmt = stmt.order_by(Visit.created_at.desc()).limit(limit)
+        return list(s.scalars(stmt))
+
+
 # ----- call events (live dashboard) -----
 
 def log_event(call_id: str, kind: str, role: str | None = None,

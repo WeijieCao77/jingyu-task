@@ -53,6 +53,24 @@ def test_notify_none_returns_true(temp_db):
     assert ok is True
 
 
+def test_api_query_structured(temp_db):
+    from fastapi.testclient import TestClient
+
+    from visitor_agent.web import server as srv
+
+    importlib.reload(srv)
+    temp_db.create_visit({"plate": "沪A1", "company": "蓝色鲸鱼"}, "q1")
+    temp_db.create_visit({"plate": "沪A2", "company": "蓝色鲸鱼"}, "q2")
+    temp_db.create_visit({"plate": "沪B9", "company": "别家"}, "q3")
+    temp_db.mark_confirmed("q2")  # one released
+
+    client = TestClient(srv.app)
+    d = client.get("/api/query", params={"range": "all"}).json()
+    assert d["count"] == 3 and d["released"] == 1 and len(d["visits"]) == 3
+    assert client.get("/api/query", params={"range": "all", "company": "蓝色鲸鱼"}).json()["count"] == 2
+    assert client.get("/api/query", params={"range": "all", "status": "confirmed"}).json()["count"] == 1
+
+
 def test_ask_page_and_query_endpoint(temp_db, monkeypatch):
     from fastapi.testclient import TestClient
 
@@ -62,9 +80,9 @@ def test_ask_page_and_query_endpoint(temp_db, monkeypatch):
     importlib.reload(srv)
     client = TestClient(srv.app)
 
-    # conversational query page renders
+    # data center page renders both modes
     page = client.get("/ask")
-    assert page.status_code == 200 and "门卫数据助手" in page.text
+    assert page.status_code == 200 and "门卫数据中心" in page.text and "筛选查询" in page.text
 
     # endpoint forwards the question + prior turns (history) to the agent
     seen = {}

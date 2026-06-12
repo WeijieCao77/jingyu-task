@@ -136,6 +136,43 @@ def api_profiles(min_visits: int = 1) -> JSONResponse:
     return JSONResponse(repo.visitor_profiles(limit=50, min_visits=min_visits))
 
 
+def _range_window(range_: str):
+    """Map today|week|month|all → (since, until) in the configured timezone."""
+    from datetime import datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo(get_settings().timezone)
+    now = datetime.now(tz)
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if range_ == "today":
+        since = midnight
+    elif range_ == "week":
+        since = midnight - timedelta(days=now.weekday())
+    elif range_ == "month":
+        since = midnight.replace(day=1)
+    else:
+        return None, None
+    return since.astimezone(timezone.utc), None
+
+
+@app.get("/api/query")
+def api_query(range: str = "all", company: str = "", status: str = "",
+              plate: str = "", phone: str = "", limit: int = 50) -> JSONResponse:
+    """Deterministic structured query (no LLM): count + matching list + hour
+    histogram for the given filters. Powers the 'filter' mode of the data center."""
+    since, until = _range_window(range)
+    st = status or None
+    visits = repo.query_visits(since=since, until=until, company=company or None,
+                               plate=plate or None, phone=phone or None,
+                               status=st, limit=limit)
+    return JSONResponse({
+        "count": repo.count_visits(since=since, until=until, company=company or None, status=st),
+        "released": repo.count_visits(since=since, until=until, company=company or None, status="confirmed"),
+        "visits": [v.to_dict() for v in visits],
+        "by_hour": repo.visits_by_hour(since=since),
+    })
+
+
 @app.get("/admin", response_class=HTMLResponse)
 def admin() -> HTMLResponse:
     return HTMLResponse(_ADMIN_HTML)
@@ -519,68 +556,160 @@ hang.onclick=async()=>{try{await rm.disconnect();}catch(_){}st.textContent='已�
 
 _ASK_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>门卫数据助手</title>
+<title>门卫数据中心</title>
 <style>
-  :root{--bg:#eef1f6;--card:#fff;--ink:#1f2733;--muted:#8a94a6;--accent:#1ea672}
+  :root{--bg:#eef1f6;--card:#fff;--ink:#1f2733;--muted:#8a94a6;--accent:#1ea672;--line:#e9edf3}
   *{box-sizing:border-box} html,body{height:100%}
   body{margin:0;font-family:-apple-system,'Segoe UI',Roboto,'PingFang SC',sans-serif;background:var(--bg);
     color:var(--ink);display:flex;flex-direction:column}
-  header{padding:14px 24px;display:flex;align-items:center;gap:10px;background:#fff;border-bottom:1px solid #e9edf3}
-  header h1{font-size:17px;margin:0} header .sub{color:var(--muted);font-size:12px}
-  header a,header button{margin-left:auto;color:#566;text-decoration:none;font-size:13px;background:#f3f6fb;
-    border:1px solid #e7ecf4;padding:7px 13px;border-radius:999px;cursor:pointer}
-  header a{margin-left:8px}
-  .chat{flex:1;overflow:auto;padding:22px;max-width:780px;width:100%;margin:0 auto}
+  header{padding:12px 22px;display:flex;align-items:center;gap:14px;background:#fff;border-bottom:1px solid var(--line)}
+  header h1{font-size:17px;margin:0}
+  .tabs{display:flex;gap:6px;background:#f3f6fb;border-radius:999px;padding:4px}
+  .tab{border:0;background:transparent;color:#566;font-size:14px;padding:7px 16px;border-radius:999px;cursor:pointer}
+  .tab.on{background:var(--accent);color:#fff;font-weight:600}
+  header .links{margin-left:auto;display:flex;gap:8px}
+  header a{color:#566;text-decoration:none;font-size:13px;background:#f3f6fb;border:1px solid #e7ecf4;
+    padding:7px 12px;border-radius:999px}
+  .panel{flex:1;min-height:0;display:flex;flex-direction:column}
+  /* ---- chat ---- */
+  .chat{flex:1;overflow:auto;padding:20px;max-width:800px;width:100%;margin:0 auto}
   .msg{display:flex;margin:10px 0} .msg.me{justify-content:flex-end}
   .bub{max-width:80%;padding:11px 15px;border-radius:16px;font-size:15px;line-height:1.65;white-space:pre-wrap}
   .me .bub{background:var(--accent);color:#fff;border-bottom-right-radius:5px}
-  .ai .bub{background:#fff;color:var(--ink);box-shadow:0 4px 16px rgba(20,30,50,.06);border-bottom-left-radius:5px}
+  .ai .bub{background:#fff;box-shadow:0 4px 16px rgba(20,30,50,.06);border-bottom-left-radius:5px}
   .hint{color:var(--muted);font-size:13px;text-align:center;margin:18px 0 8px}
-  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:620px;margin:0 auto}
-  .chip{background:#fff;border:1px solid #e7ecf4;color:#48566b;border-radius:999px;padding:8px 14px;
-    font-size:13px;cursor:pointer} .chip:hover{background:#eef3fb}
-  .bar{border-top:1px solid #e9edf3;background:#fff;padding:12px 22px}
-  .row{display:flex;gap:10px;max-width:780px;margin:0 auto}
-  input{flex:1;font-size:15px;padding:13px 16px;border:1px solid #dde3ec;border-radius:12px;outline:none}
-  input:focus{border-color:var(--accent)}
-  .send{border:0;border-radius:12px;background:var(--accent);color:#fff;padding:0 22px;font-size:15px;
-    font-weight:600;cursor:pointer} .send:disabled{opacity:.6}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:640px;margin:0 auto}
+  .chip{background:#fff;border:1px solid #e7ecf4;color:#48566b;border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer}
+  .chip:hover{background:#eef3fb}
+  .bar{border-top:1px solid var(--line);background:#fff;padding:12px 20px}
+  .brow{display:flex;gap:10px;max-width:800px;margin:0 auto}
+  input,select{font-size:15px;padding:11px 14px;border:1px solid #dde3ec;border-radius:10px;outline:none;background:#fff}
+  input:focus,select:focus{border-color:var(--accent)}
+  .brow input{flex:1}
+  .send{border:0;border-radius:10px;background:var(--accent);color:#fff;padding:0 22px;font-size:15px;font-weight:600;cursor:pointer}
+  .send:disabled{opacity:.6}
   .spin{display:inline-block;width:15px;height:15px;border:2px solid #cfe;border-top-color:var(--accent);
     border-radius:50%;animation:s .8s linear infinite;vertical-align:-2px} @keyframes s{to{transform:rotate(360deg)}}
+  /* ---- structured query ---- */
+  .qwrap{flex:1;overflow:auto;padding:20px;max-width:980px;width:100%;margin:0 auto}
+  .filters{background:#fff;border-radius:16px;box-shadow:0 6px 24px rgba(20,30,50,.06);padding:16px 18px;
+    display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .seg{display:flex;gap:4px;background:#f3f6fb;border-radius:10px;padding:4px}
+  .seg button{border:0;background:transparent;padding:7px 13px;border-radius:8px;font-size:14px;cursor:pointer;color:#566}
+  .seg button.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  .stat{display:flex;gap:14px;margin:16px 0}
+  .scard{background:#fff;border-radius:14px;box-shadow:0 6px 24px rgba(20,30,50,.06);padding:14px 20px;flex:1}
+  .scard .n{font-size:26px;font-weight:800;color:var(--accent)} .scard .l{color:var(--muted);font-size:13px}
+  .hours{background:#fff;border-radius:14px;box-shadow:0 6px 24px rgba(20,30,50,.06);padding:14px 18px;margin-bottom:16px}
+  .hours .bars{display:flex;align-items:flex-end;gap:3px;height:70px;margin-top:8px}
+  .hours .bar2{flex:1;background:#cfeede;border-radius:3px 3px 0 0;min-height:2px} .hours .bar2.hot{background:var(--accent)}
+  .tbl{background:#fff;border-radius:14px;box-shadow:0 6px 24px rgba(20,30,50,.06);overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:11px 14px;background:#fafbfd}
+  td{padding:12px 14px;border-top:1px solid #eef1f6}
+  .pill{font-size:12px;padding:3px 10px;border-radius:999px}
+  .pill.ok{background:#e7f6ef;color:#1ea672} .pill.wait{background:#fdf3e3;color:#c77b1a}
+  .empty{padding:30px;text-align:center;color:var(--muted)}
 </style></head><body>
-<header><h1>🤖 门卫数据助手</h1><span class="sub">和 AI 对话查访客数据 · 可追问</span>
-<button id="new">＋ 新对话</button><a href="/dashboard">← 控制台</a></header>
-<div class="chat" id="chat">
-  <div id="welcome"><div class="hint">问我任何关于访客数据的问题，支持追问（如"那上个月呢？"）</div>
-  <div class="chips" id="chips"></div></div>
+<header><h1>📊 门卫数据中心</h1>
+  <div class="tabs"><button class="tab on" data-t="chat">💬 对话</button><button class="tab" data-t="query">🔎 筛选查询</button></div>
+  <div class="links"><a href="/admin" target="_blank">🏆 常客</a><a href="/dashboard">← 控制台</a></div>
+</header>
+
+<!-- 对话模式 -->
+<div class="panel" id="panel-chat">
+  <div class="chat" id="chat">
+    <div id="welcome"><div class="hint">和 AI 对话查访客数据，支持追问（如"那上个月呢？"）</div>
+    <div class="chips" id="chips"></div></div>
+  </div>
+  <div class="bar"><div class="brow">
+    <input id="q" placeholder="例如：这个月有多少辆车被放行？">
+    <button class="send" id="go">发送</button>
+    <button class="send" id="new" style="background:#f3f6fb;color:#566">＋新对话</button>
+  </div></div>
 </div>
-<div class="bar"><div class="row">
-  <input id="q" placeholder="例如：这个月有多少辆车被放行？" autofocus>
-  <button class="send" id="go">发送</button></div></div>
+
+<!-- 筛选查询模式（确定性，不走 LLM） -->
+<div class="panel" id="panel-query" style="display:none">
+  <div class="qwrap">
+    <div class="filters">
+      <div class="seg" id="seg-range">
+        <button data-r="today">今天</button><button data-r="week">本周</button>
+        <button data-r="month" class="on">本月</button><button data-r="all">全部</button></div>
+      <input id="f-company" placeholder="来访单位（可空）" style="width:160px">
+      <input id="f-plate" placeholder="车牌（可空）" style="width:130px">
+      <select id="f-status"><option value="">全部状态</option><option value="confirmed">已放行</option><option value="pending">待核对</option></select>
+      <button class="send" id="run">查询</button>
+    </div>
+    <div class="stat">
+      <div class="scard"><div class="n" id="s-count">—</div><div class="l">符合条件车辆</div></div>
+      <div class="scard"><div class="n" id="s-released">—</div><div class="l">其中已放行</div></div>
+    </div>
+    <div class="hours"><div class="l" style="color:#8a94a6;font-size:13px">访问时段分布（0–23 时）</div>
+      <div class="bars" id="bars"></div></div>
+    <div class="tbl"><table><thead><tr><th>车牌</th><th>来访单位</th><th>事由</th><th>手机</th><th>时间</th><th>状态</th></tr></thead>
+      <tbody id="rows"></tbody></table><div class="empty" id="q-empty" style="display:none">没有符合条件的记录</div></div>
+  </div>
+</div>
+
 <script>
+// ---- tabs ----
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));
+  document.getElementById('panel-chat').style.display=t.dataset.t==='chat'?'':'none';
+  document.getElementById('panel-query').style.display=t.dataset.t==='query'?'':'none';
+  if(t.dataset.t==='query') runQuery();
+});
+
+// ---- chat mode ----
 const EX=["这个月有多少辆车被放行？","本周一共多少访问车辆？","这个月找蓝色鲸鱼的有多少人？",
           "什么时间段访问最多？","张师傅这个月来了几次？","常客前五是谁？"];
 const chat=document.getElementById('chat'),q=document.getElementById('q'),go=document.getElementById('go'),
       chips=document.getElementById('chips'),welcome=document.getElementById('welcome');
-let history=[];  // [{role:'user'|'assistant', content}]
+let history=[];
 chips.innerHTML=EX.map(t=>'<span class="chip">'+t+'</span>').join('');
 chips.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{q.value=c.textContent;send();});
-document.getElementById('new').onclick=()=>{history=[];chat.querySelectorAll('.msg').forEach(m=>m.remove());
-  welcome.style.display='';};
+document.getElementById('new').onclick=()=>{history=[];chat.querySelectorAll('.msg').forEach(m=>m.remove());welcome.style.display='';};
 function bubble(role,text){const m=document.createElement('div');m.className='msg '+(role==='user'?'me':'ai');
   const b=document.createElement('div');b.className='bub';b.textContent=text;m.appendChild(b);
   chat.appendChild(m);chat.scrollTop=chat.scrollHeight;return b;}
 async function send(){const question=q.value.trim(); if(!question||go.disabled)return;
-  welcome.style.display='none'; q.value='';
-  bubble('user',question);
-  const b=bubble('ai',''); b.innerHTML='<span class="spin"></span> 正在查…';
-  go.disabled=true;
+  welcome.style.display='none'; q.value=''; bubble('user',question);
+  const b=bubble('ai',''); b.innerHTML='<span class="spin"></span> 正在查…'; go.disabled=true;
   try{const r=await fetch('/guard/query',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({question,history})});
     const d=await r.json(); const a=d.answer||d.error||'(无结果)';
     b.textContent=a; history.push({role:'user',content:question}); history.push({role:'assistant',content:a});
   }catch(e){b.textContent='出错了：'+e.message;} go.disabled=false; q.focus();}
 go.onclick=send; q.addEventListener('keydown',e=>{if(e.key==='Enter')send();});
+
+// ---- structured filter mode ----
+let curRange='month';
+document.querySelectorAll('#seg-range button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#seg-range button').forEach(x=>x.classList.toggle('on',x===b));
+  curRange=b.dataset.r; runQuery();});
+document.getElementById('run').onclick=runQuery;
+['f-company','f-plate'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')runQuery();}));
+document.getElementById('f-status').onchange=runQuery;
+async function runQuery(){
+  const p=new URLSearchParams({range:curRange,company:document.getElementById('f-company').value.trim(),
+    plate:document.getElementById('f-plate').value.trim(),status:document.getElementById('f-status').value,limit:'100'});
+  try{const r=await fetch('/api/query?'+p.toString()); const d=await r.json();
+    document.getElementById('s-count').textContent=d.count;
+    document.getElementById('s-released').textContent=d.released;
+    // hour histogram
+    const by=d.by_hour||{}; let max=1; for(let h=0;h<24;h++) max=Math.max(max,by[h]||0);
+    let bars=''; for(let h=0;h<24;h++){const v=by[h]||0; const hot=v===max&&v>0;
+      bars+='<div class="bar2'+(hot?' hot':'')+'" style="height:'+Math.round((v/max)*100)+'%" title="'+h+'时: '+v+'"></div>';}
+    document.getElementById('bars').innerHTML=bars;
+    const tb=document.getElementById('rows'); const vs=d.visits||[];
+    document.getElementById('q-empty').style.display=vs.length?'none':'block';
+    tb.innerHTML=vs.map(v=>{const st=v.status==='confirmed'?'<span class="pill ok">已放行</span>':'<span class="pill wait">待核对</span>';
+      const bl=v.access_status==='blacklist'?' ⛔':v.access_status==='whitelist'?' ✅':'';
+      return '<tr><td>'+(v.plate||'—')+bl+'</td><td>'+(v.company||'—')+'</td><td>'+(v.reason||'—')+
+        '</td><td>'+(v.phone||'—')+'</td><td style="color:#8a94a6">'+(v.entry_time||'—')+'</td><td>'+st+'</td></tr>';}).join('');
+  }catch(e){document.getElementById('rows').innerHTML='<tr><td colspan=6 style="color:#c62828">查询出错：'+e.message+'</td></tr>';}
+}
 </script></body></html>"""
 
 
