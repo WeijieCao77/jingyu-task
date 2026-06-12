@@ -59,6 +59,38 @@
 
 > 先把上面拿到的密钥准备好，本地 CC 会问你要、写进 `.env`、起服务、报错自查。
 
+### 📋 Prompt 2.0 —— 一键全面自测（不用电话，覆盖 A–H，最后给 ✅/❌ 清单）
+```
+这是园区语音访客登记项目（分支 claude/voice-agent-takehome-qzjbd2），帮我做一轮全面本地自测，
+最后给我一个逐项 ✅/❌ 清单 + 关键截图/数字。报错先自查修复再继续。
+
+【准备】
+1. git pull origin claude/voice-agent-takehome-qzjbd2；x64 venv：pip install -r requirements.txt
+   （Windows/ARM64 按 SMOKE_CHECK.md §C5）。
+2. 写 .env：问我要 OPENAI_API_KEY；VOICE_MODE=realtime（若该 key 无 gpt-realtime 权限就用 pipeline 并告诉我）；
+   NOTIFY_CHANNEL=telegram + 我的 TELEGRAM_BOT_TOKEN/CHAT_ID（帮我取 chat id）；
+   PUBLIC_BASE_URL 用我手机可达地址（隧道/Tailscale，别用 localhost）；
+   ROSTER_PATH=roster.json（没有就用 roster.example.json）；ACCESS_LIST_PATH=access.example.json；
+   GUARD_ACCESS_KEY=demo123。
+3. PYTHONPATH=src pytest -q（应 82 passed；缺 livekit 就先装）。
+4. 起三个进程：本地 LiveKit（livekit-server.exe --dev）、web server、agent worker(dev)。
+   记下 web 日志里 “SQLite database at <绝对路径>”，确认 agent 进程打印的是同一个路径。
+
+【逐项验证，每项打 ✅/❌ 附现象】
+A. 浏览器语音+realtime：开 /voice 登记一辆车 → AI 1~2s 开口、对话自然、结尾复述车牌(逐位)+手机(分组)让我确认；记首句延迟。
+B. Telegram：手机是否收到访客卡片（车牌/单位/事由/手机/姓名 + 老访客/名单标记）。
+C. 公司名单：故意说“蓝色金鱼科技” → 是否纠成“蓝色鲸鱼科技”并确认。
+D. 黑白名单：白名单车牌沪A12345 → 卡片/后台 ✅白名单（仍需点放行）；
+   黑名单车牌沪A00000 → ⛔黑名单，后台“⛔禁止放行”不能点，点确认链接也“禁止放行”、栏杆不抬。
+E. 放行播报(FR-2)：/voice 通话中登记完，/dashboard 点放行 → 我这端 AI 是否说“已放行请进”。
+F. 数据中心 /ask：① 对话：问“这个月有多少辆车被放行？”→ 追问“那本周呢？”数字对、结合上文；
+   ② 筛选：切“筛选查询”，本月/状态=已放行/填单位 → 数量、已放行数、时段柱状图、结果表对得上。
+G. 持久化：停掉 agent+web 再重开 → /dashboard 之前的记录还在；用同一手机号/车牌再登记 → AI 是否认出“老访客”。
+H. 门卫鉴权：访客 /voice 仍能开；但 /dashboard /ask /admin 跳 /login，输 demo123 才进、输错进不去。
+
+把 A–H 的结果发我。
+```
+
 ### 📋 Prompt 2.1 —— 同步代码 + 起服务 + 浏览器先跑通（不用电话）
 ```
 这是园区语音访客登记项目，分支 claude/voice-agent-takehome-qzjbd2。请：
