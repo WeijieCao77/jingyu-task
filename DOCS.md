@@ -14,6 +14,8 @@
 2. **[PRODUCT_FLOW.md](PRODUCT_FLOW.md)** —— 全流程 + 访客/管理者双视角 + 产品决策点（**产品评审看这篇**）。
 3. **[FRAMEWORK_RESEARCH.md](FRAMEWORK_RESEARCH.md)** —— 框架市场调研：为什么选 LiveKit、竞品优势、为什么不用（**答辩选型看这篇**）。
 
+> 👉 **你（人）要做账号/操作 + 给本地 CC 的 prompt，看这一篇：[SETUP_GUIDE.md](SETUP_GUIDE.md)**（v0.23 总指南，含电话/Telegram/黑白名单/FR-2 验证 prompt）。
+
 ---
 
 ## 一、产品与流程
@@ -36,6 +38,8 @@
 
 | 文档 | 用途 | 读者 | 一句话 |
 |---|---|---|---|
+| **[SETUP_GUIDE.md](SETUP_GUIDE.md)** ⭐ | **总指南：账号+操作+逐项 prompt** | 你 | v0.23 一站式：要哪些账号、手把手、给本地 CC 的 prompt（含电话） |
+| **[TELEPHONY.md](TELEPHONY.md)** ☎️ | 电话接入（拨号进来） | 你/本地 CC | Twilio→LiveKit SIP→agent；选型/国内替代/排错/prompt |
 | **[ACCEPTANCE_PROMPT.md](ACCEPTANCE_PROMPT.md)** | 一键验收 prompt | 喂给本地 Claude Code | 全自动起服务，只需 1 个 OpenAI key |
 | **[USER_TODO.md](USER_TODO.md)** | 你要做的事 + 图文教程 | 你 | 怎么拿 API key / LiveKit 免费号、花费预期、安全 |
 | **[QR_DEMO.md](QR_DEMO.md)** | 手机扫码版 | 你/本地 CC | 路 A(LiveKit Cloud) / 路 B(同 WiFi 零账号) |

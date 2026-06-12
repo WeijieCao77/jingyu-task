@@ -1,6 +1,6 @@
 # 🐳 园区语音访客登记 Voice Agent
 
-> 📚 **所有文档的索引见 [DOCS.md](DOCS.md)**；产品全流程+双视角看 [PRODUCT_FLOW.md](PRODUCT_FLOW.md)；框架调研看 [FRAMEWORK_RESEARCH.md](FRAMEWORK_RESEARCH.md)。
+> 📚 **所有文档索引见 [DOCS.md](DOCS.md)**；🧭 **你要做的账号/操作 + 给本地 CC 的 prompt 看 [SETUP_GUIDE.md](SETUP_GUIDE.md)**；电话接入看 [TELEPHONY.md](TELEPHONY.md)。
 
 未登记车辆**拨打入口号码**（或扫码/浏览器）→ AI 门卫**自然中文对话**采集（车牌/单位/手机/事由）→ 推送保安（Dashboard/微信/Telegram）→ 保安确认 → 抬杆。**Agent 开口到推送 ≤25 秒**。默认 **realtime 语音**（首句 ≈1.4s）。电话接入见 [TELEPHONY.md](TELEPHONY.md)。
 
