@@ -102,6 +102,32 @@ def build_realtime(cfg: Settings):
         )
     except Exception:  # noqa: BLE001 — type path varies by SDK; transcript is best-effort
         pass
+    # Phone lines carry echo/background noise that the DEFAULT server-VAD often
+    # mistakes for the caller speaking → it interrupts the agent mid-word, so
+    # syllables get "swallowed" on the call. Make turn-taking less trigger-happy:
+    # higher VAD threshold + longer onset/silence, plus far-field noise reduction.
+    # Env-tunable (no config.py change needed): REALTIME_VAD_THRESHOLD / REALTIME_SILENCE_MS.
+    import os  # local import → avoids touching module top (smaller merge surface)
+
+    try:
+        from openai.types.beta.realtime.session import TurnDetection
+
+        kwargs["turn_detection"] = TurnDetection(
+            type="server_vad",
+            threshold=float(os.getenv("REALTIME_VAD_THRESHOLD", "0.6")),
+            prefix_padding_ms=300,
+            silence_duration_ms=int(os.getenv("REALTIME_SILENCE_MS", "600")),
+            create_response=True,
+            interrupt_response=True,  # keep barge-in, just less twitchy
+        )
+    except Exception:  # noqa: BLE001 — SDK field variance; defaults still work
+        pass
+    try:
+        from openai.types.beta.realtime.session import InputAudioNoiseReduction
+
+        kwargs["input_audio_noise_reduction"] = InputAudioNoiseReduction(type="far_field")
+    except Exception:  # noqa: BLE001
+        pass
     return openai.realtime.RealtimeModel(**kwargs)
 
 
