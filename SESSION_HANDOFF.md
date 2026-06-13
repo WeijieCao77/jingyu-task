@@ -19,6 +19,7 @@ src/visitor_agent/
   session_logic.py 登记大脑 record/complete + 回访画像 + 名单匹配 + 黑白名单 + 放行播报payload（live & sim 共用）
   roster.py       公司名单模糊匹配（汉字+拼音；ROSTER_PATH 开启，默认关）
   access.py       黑白名单精确匹配（车牌/手机；ACCESS_LIST_PATH 开启，默认关）
+  tenant.py       多租户：按被叫号码解析各租户配置（TENANTS_PATH 开启，默认关；产品化阶段1）
   guard_query.py  门卫数据助手（OpenAI/Claude 双驱动；多轮 history；count_visits 含放行status）
   notify/         dispatch(多渠道) + telegram(localhost兜底)/discord/wecom + gate(海康/stub) + common(老访客/名单高亮)
   db/             visits(+access_status/room) + call_events；_ensure_columns 增量迁移
@@ -36,7 +37,8 @@ tests/  76 个离线单测（沙箱缺 livekit 时 1 个 /token 用例跳过） 
 - ⏳ **手机点放行链接**：用 Telegram 时 `PUBLIC_BASE_URL` 不能 localhost（已修+文档）；用户实测 Tailscale IP `http://100.67.103.51:8080` 可用。
 - ✅ **v0.23 用户决策已落地**：默认 `VOICE_MODE=realtime`；**黑名单登记不放行**（系统拒绝放行）；白名单仍需保安确认（不自动放行）。
 - ⏳ **v0.23 电话接入（任务第一必交项）**：`scripts/setup_sip.sh` + `TELEPHONY.md` 就绪（Twilio→LiveKit SIP→自动派发 agent；主叫号预填手机）。**待用户用 Twilio+LiveKit Cloud 真机拨打**（prompt 见 §9-E + `TELEPHONY.md` §六）。
-- 沙箱说明：这里 1 个 `/token` 用例失败只因未装 livekit 运行时包；装了即 76 全绿。Notion/YouTube 受出网白名单限制读不到（任务全文已由用户粘贴据此研究）。
+- ✅ **v0.26 自主夜间**：真机电话反馈 FR-3~9（开场白/字母消歧/只复述被改项/手机校验/单位不在名单转人工/转人工推手机/不编造/自动挂断）+ 模型查询强制工具+分层 + **多租户 `tenant.py` 起步** + `UPGRADE_PLAN.md` 三层计划。离线 89 全绿（含真 .env）。FR-4 自动挂断、多租户 agent 接入 live-only 待真机验。
+- 沙箱说明：这里 1 个 `/token` 用例失败只因未装 livekit 运行时包；装了即全绿。Notion/YouTube 受出网白名单限制读不到（任务全文已由用户粘贴据此研究）。
 
 ## 5. 分支 / PR
 | 分支 | 状态 | 内容 |

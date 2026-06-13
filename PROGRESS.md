@@ -136,6 +136,16 @@
 - 限制：电话链路需 LiveKit Cloud + Twilio（用户账号/钱），沙箱无法真跑 → 代码/脚本/文档就绪，待用户真机（prompt 见 `TELEPHONY.md` §六 + `SESSION_HANDOFF.md`）。
 - 说明：Notion/YouTube 受沙箱出网白名单限制（notion.site/notion.so/youtube 未在 allowlist）无法读取；任务全文已由用户粘贴、据此研究。
 
+## 第十一轮（自主夜间：真机电话反馈 + 三层升级；v0.26）
+
+用户提交 4 份真机电话验收报告并授权"自主迭代 + 三层升级（操作/模型架构/产品化），每层有计划有提升并记录"。本轮（离线 75→89 全绿，含真 .env 在场也全绿）：
+
+- ✅ **操作层（FR-3~9）**：温和开场白、字母消歧回读、只复述被改项、手机11位校验、单位不在名单→确认再转人工、转人工推门卫手机、无公司不强逼不编造、登记完自动挂断+最长时长兜底；sim 注入 access_check。
+- ✅ **模型架构层**：数据查询强制先调工具（杜绝答0/拒答）+ 模型分层 `GUARD_QUERY_MODEL`；`UPGRADE_PLAN.md §二` 列 token/成本杠杆。
+- ✅ **产品化层**：`tenant.py` 多租户配置基础（按被叫号码路由各租户独立配置，默认关、单租户不变）+ `UPGRADE_PLAN.md` 三层分阶段计划。
+- ✅ **测试**：`conftest.py` 让全套忽略磁盘 .env（修 P2-4 + 鉴权用例隔离）。
+- 说明：FR-4 自动挂断、多租户 agent 接入为 live-only（沙箱无 livekit），已 guarded，待用户真机验证。已大多数 P0/P1（插件主线程、realtime say、tzdata、sim、telegram localhost、autoplay 兜底）此前已合并。
+
 ## 怎么快速验收（建议顺序）
 
 1. `PYTHONPATH=src pytest -q` → 应 16 passed。

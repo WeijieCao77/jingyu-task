@@ -37,7 +37,8 @@ docker run -d --name livekit-dev -p 7880:7880 -p 7881:7881 -p 7882:7882/udp \
 # 打开 http://localhost:8080/voice 点"接入门卫"对话；后台点"✅放行"
 ```
 
-> **Windows / ARM64 / 无 Docker**：见 [SMOKE_CHECK.md](SMOKE_CHECK.md) §C5（用 x64 Python + LiveKit 原生二进制 + PowerShell 命令对照）。
+> **Windows / ARM64 / 无 Docker**：ARM64 须用 **x64 Python**（`livekit-blingfire` 无 win_arm64 wheel，x64 模拟可跑）；LiveKit 用原生二进制 `livekit-server.exe --dev` 或直接 **LiveKit Cloud**。详见 [SMOKE_CHECK.md](SMOKE_CHECK.md) §C5（PowerShell 命令对照）。
+> **产品升级路线**（操作体验 / 模型效率成本 / 多租户产品化）见 [UPGRADE_PLAN.md](UPGRADE_PLAN.md)。
 > **☎️ 拨号进来（核心需求）**：用 LiveKit Cloud + Twilio SIP，`SIP_INBOUND_NUMBER=+1... ./scripts/setup_sip.sh` 建好入站规则即可拨打——全程见 [TELEPHONY.md](TELEPHONY.md)。
 
 无语音快速验证：`./scripts/run_sim.sh --scenario scenarios/songhuo.json --live`（文本仿真，同一套逻辑）。
