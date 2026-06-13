@@ -18,7 +18,7 @@ import json
 import time
 
 from ..config import get_settings
-from ..prompts import SYSTEM_PROMPT
+from ..prompts import GREETING, SYSTEM_PROMPT
 from ..session_logic import LiveNotifier, MockNotifier, RegistrationSession
 
 TOOLS = [
@@ -155,15 +155,17 @@ async def run(scenario: list[str] | None, live: bool) -> None:
 
         event_sink("call_started", None, f"文本仿真来电（{call_id}）", None)
 
+    from ..access import make_access_checker
     from ..roster import make_matcher
 
     reg = RegistrationSession(
         notifier=notifier, lookup_returning=lookup, tz=cfg.timezone, event_sink=event_sink,
         roster_match=make_matcher(cfg.roster_path, cfg.roster_threshold),
+        access_check=make_access_checker(cfg.access_list_path),  # blacklist/whitelist testable offline
     )
 
     print("=== 门卫语音 Agent · 文本仿真 ===")
-    print("AGENT> 您好，请问车牌号多少，今天找哪家公司，什么事儿？\n")
+    print(f"AGENT> {GREETING}\n")
 
     turns = iter(scenario) if scenario else None
     t0 = time.monotonic()

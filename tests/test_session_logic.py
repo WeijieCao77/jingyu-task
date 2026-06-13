@@ -108,6 +108,24 @@ async def _complete_and_capture(reg) -> dict:
     return reg.notifier.calls[-1]
 
 
+def test_roster_miss_hints_to_escalate():
+    # roster configured but company not found → hint nudges confirm-then-escalate
+    reg = RegistrationSession(
+        notifier=MockNotifier(),
+        roster_match=lambda text: ("蓝色鲸鱼科技", 0.9) if "鲸鱼" in (text or "") else (None, 0.2),
+    )
+    out = reg.record(company="不存在的公司")
+    assert "单位不在园区名单" in out and "转人工" in out
+
+
+def test_invalid_phone_hints_reconfirm():
+    reg = RegistrationSession(notifier=MockNotifier())
+    out = reg.record(phone="1380013800")  # 10 digits
+    assert "手机号位数异常" in out
+    out2 = reg.record(phone="13800138000")  # valid 11 → no warning
+    assert "手机号位数异常" not in out2
+
+
 def test_name_is_optional_not_required():
     reg = RegistrationSession(notifier=MockNotifier())
     reg.record(plate="沪A1", company="蓝色鲸鱼", reason="送货", phone="13800138000")

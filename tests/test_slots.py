@@ -1,4 +1,17 @@
-from visitor_agent.slots import VisitorInfo, normalize_phone, normalize_plate
+from visitor_agent.slots import (
+    VisitorInfo,
+    is_valid_cn_mobile,
+    normalize_phone,
+    normalize_plate,
+)
+
+
+def test_is_valid_cn_mobile():
+    assert is_valid_cn_mobile("13800138000")          # 11, starts 1[3-9]
+    assert not is_valid_cn_mobile("1380013800")       # 10 digits
+    assert not is_valid_cn_mobile("138001380000")     # 12 digits
+    assert not is_valid_cn_mobile("23800138000")      # doesn't start with 1
+    assert not is_valid_cn_mobile(None)
 
 
 def test_normalize_plate():

@@ -133,7 +133,10 @@ class RegistrationSession:
                     self.info.reason = prof["last_reason"]
                 hint = self._returning_hint(prof)
 
-        # Snap the company to the park roster (corrects mis-heard names).
+        # Snap the company to the park roster (corrects mis-heard names). When a
+        # roster IS configured but the company doesn't match anything, surface
+        # that to the LLM so it can confirm once and, failing that, escalate
+        # (FR-5: "公司不在园区名单" should be able to trigger 转人工).
         if company and self.roster_match and self.info.company:
             official, score = self.roster_match(self.info.company)
             if official and official != self.info.company:
@@ -143,6 +146,20 @@ class RegistrationSession:
                     f" 【单位已匹配名单】把'{orig}'匹配到'{official}'，"
                     "请向访客确认是不是找这家。"
                 )
+            elif official is None:
+                hint += (
+                    f" 【单位不在园区名单】未找到'{self.info.company}'，先跟访客确认一次"
+                    "（是否听错/换个说法）；仍对不上就转人工核实。"
+                )
+
+        # Phone sanity: a mainland mobile is 11 digits starting with 1. If what we
+        # captured isn't, tell the LLM to re-confirm it (FR-8).
+        from .slots import is_valid_cn_mobile
+
+        if phone and self.info.phone and not is_valid_cn_mobile(self.info.phone):
+            hint += (
+                " 【手机号位数异常】这个号码不是11位/1开头，请向访客确认后重报手机号。"
+            )
 
         # Blacklist / whitelist check on any newly-learned identifier. Kept out
         # of the AI-facing hint on purpose: the gatekeeper keeps registering

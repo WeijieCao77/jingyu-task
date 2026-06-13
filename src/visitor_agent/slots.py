@@ -64,6 +64,12 @@ def normalize_phone(value: str | None) -> str | None:
     return m.group(0) if m else (digits or None)
 
 
+def is_valid_cn_mobile(value: str | None) -> bool:
+    """A mainland China mobile is exactly 11 digits starting 1[3-9]. Used to flag
+    mis-heard / short numbers so the agent re-confirms instead of storing junk."""
+    return bool(value and _PHONE_RE.fullmatch(value))
+
+
 @dataclass
 class VisitorInfo:
     """Mutable slot state for a single call."""
