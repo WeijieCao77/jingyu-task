@@ -55,6 +55,22 @@ def build_payload(visit: dict, confirm_url: str, chat_id: str) -> dict:
     return payload
 
 
+async def send_text(bot_token: str, chat_id: str, text: str, timeout: float = 5.0) -> bool:
+    """Plain-text push (used for transfer-to-human alerts, not visit cards)."""
+    if not (bot_token and chat_id):
+        print("[TELEGRAM] (未配置) " + text)
+        return False
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(url, json={"chat_id": chat_id, "text": text,
+                                                "disable_web_page_preview": True})
+        return bool(resp.json().get("ok"))
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Telegram alert error: %s", exc)
+        return False
+
+
 async def send(bot_token: str, chat_id: str, visit: dict, confirm_url: str,
                timeout: float = 5.0) -> bool:
     if not (bot_token and chat_id):

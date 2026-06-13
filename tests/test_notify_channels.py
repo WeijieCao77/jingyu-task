@@ -71,6 +71,26 @@ def test_dispatch_none(monkeypatch):
     assert asyncio.run(dispatch.push(s, {"plate": "沪A1"}, "u")) is True
 
 
+def test_push_alert_routes_text(monkeypatch):
+    import asyncio
+    import types
+
+    from visitor_agent.notify import dispatch
+
+    seen = []
+
+    async def fake_tg(token, chat, text):
+        seen.append(("telegram", text)); return True
+
+    monkeypatch.setattr(dispatch.telegram, "send_text", fake_tg)
+    s = types.SimpleNamespace(notify_channel="telegram", telegram_bot_token="t",
+                              telegram_chat_id="c")
+    ok = asyncio.run(dispatch.push_alert(s, "⚠️ 转人工 房间 voice-demo"))
+    assert ok is True and seen and "转人工" in seen[0][1]
+    # none → no-op success
+    assert asyncio.run(dispatch.push_alert(types.SimpleNamespace(notify_channel="none"), "x")) is True
+
+
 def test_name_included_when_present():
     from visitor_agent.notify.wecom import build_markdown
 

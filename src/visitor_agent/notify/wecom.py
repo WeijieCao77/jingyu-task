@@ -50,6 +50,21 @@ def build_payload(visit: dict, confirm_url: str) -> dict:
     return {"msgtype": "markdown", "markdown": {"content": build_markdown(visit, confirm_url)}}
 
 
+async def send_text(webhook_url: str, text: str, timeout: float = 5.0) -> bool:
+    """Plain-text (markdown) push for transfer-to-human alerts."""
+    if not webhook_url:
+        print("[WECOM] (未配置) " + text)
+        return False
+    payload = {"msgtype": "markdown", "markdown": {"content": text}}
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(webhook_url, json=payload)
+        return resp.json().get("errcode") == 0
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("WeCom alert error: %s", exc)
+        return False
+
+
 async def send_visitor_card(webhook_url: str, visit: dict, confirm_url: str,
                             timeout: float = 5.0) -> bool:
     """POST the card to the WeCom webhook. Returns True on WeCom errcode==0."""

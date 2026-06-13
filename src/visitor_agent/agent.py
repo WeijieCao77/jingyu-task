@@ -76,9 +76,10 @@ async def _speak(session, cfg, text: str, *, allow_interruptions: bool = True) -
 class VisitorAgent(Agent):
     """The gatekeeper persona, exposing two tools the LLM calls to fill slots."""
 
-    def __init__(self, reg: RegistrationSession) -> None:
+    def __init__(self, reg: RegistrationSession, on_escalate=None) -> None:
         super().__init__(instructions=SYSTEM_PROMPT)
         self._reg = reg
+        self._on_escalate = on_escalate  # async cb(reason) → push alert to guard
 
     @function_tool()
     async def record_visitor_info(
@@ -117,7 +118,13 @@ class VisitorAgent(Agent):
         Args:
             reason: 转人工的简短原因（如"访客要求真人""听不清"）
         """
-        return self._reg.request_human(reason=reason)
+        result = self._reg.request_human(reason=reason)
+        if self._on_escalate:
+            try:
+                await self._on_escalate(reason)  # also ping the guard's phone
+            except Exception:  # noqa: BLE001
+                logger.exception("escalation alert error")
+        return result
 
 
 class GuardQueryAgent(Agent):
@@ -251,7 +258,17 @@ async def entrypoint(ctx: JobContext) -> None:
             roster_match=make_matcher(cfg.roster_path, cfg.roster_threshold),
             access_check=make_access_checker(cfg.access_list_path),
         )
-        agent = VisitorAgent(reg)
+
+        async def _on_escalate(reason) -> None:  # noqa: ANN001
+            from .notify import dispatch
+
+            base = cfg.public_base_url.rstrip("/")
+            link = f"{base}/guard_call?room={ctx.room.name}"
+            txt = (f"⚠️ 访客请求转人工{('：' + reason) if reason else ''}\n"
+                   f"房间：{ctx.room.name}\n介入：{link}")
+            await dispatch.push_alert(cfg, txt)
+
+        agent = VisitorAgent(reg, on_escalate=_on_escalate)
 
     if cfg.voice_mode == "realtime":
         # Speech-to-speech: one realtime model replaces STT+LLM+TTS (lowest

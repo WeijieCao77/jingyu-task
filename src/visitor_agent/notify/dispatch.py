@@ -25,13 +25,35 @@ async def _send_one(settings, channel: str, visit: dict, confirm_url: str) -> bo
     return False
 
 
-async def push(settings, visit: dict, confirm_url: str) -> bool:
-    """Push to every configured channel; True if any succeeded (or none needed)."""
+def _external_channels(settings) -> list[str]:
     raw = (settings.notify_channel or "none").lower()
     channels = [c.strip() for c in raw.split(",") if c.strip()]
-    # Drop the no-op channels; if nothing real is left, the dashboard is the channel.
-    external = [c for c in channels if c not in ("none", "dashboard", "console")]
+    return [c for c in channels if c not in ("none", "dashboard", "console")]
+
+
+async def push(settings, visit: dict, confirm_url: str) -> bool:
+    """Push to every configured channel; True if any succeeded (or none needed)."""
+    external = _external_channels(settings)
     if not external:
         return True
     results = [await _send_one(settings, c, visit, confirm_url) for c in external]
+    return any(results)
+
+
+async def _alert_one(settings, channel: str, text: str) -> bool:
+    if channel == "discord":
+        return await discord.send_text(settings.discord_webhook_url, text)
+    if channel == "telegram":
+        return await telegram.send_text(settings.telegram_bot_token, settings.telegram_chat_id, text)
+    if channel == "wecom":
+        return await wecom.send_text(settings.wecom_webhook_url, text)
+    return False
+
+
+async def push_alert(settings, text: str) -> bool:
+    """Plain-text alert to every configured channel (e.g. 转人工). Best-effort."""
+    external = _external_channels(settings)
+    if not external:
+        return True
+    results = [await _alert_one(settings, c, text) for c in external]
     return any(results)
