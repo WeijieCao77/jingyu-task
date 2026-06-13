@@ -43,7 +43,7 @@ app = FastAPI(title="Visitor Agent — Confirm & Query", lifespan=_lifespan)
 # tokenized /confirm link stay public. Gate is OFF unless GUARD_ACCESS_KEY is set.
 _GUARD_PREFIXES = (
     "/dashboard", "/ask", "/admin", "/guard_call",
-    "/api/visits", "/api/profiles", "/api/query", "/api/confirm",
+    "/api/visits", "/api/profiles", "/api/query", "/api/confirm", "/api/dial_guard",
     "/guard/query", "/events/stream",
 )
 
@@ -245,6 +245,21 @@ def api_confirm(visit_id: int) -> JSONResponse:
     return JSONResponse(visit.to_dict())
 
 
+@app.post("/api/dial_guard")
+async def api_dial_guard(room: str = "") -> JSONResponse:
+    """Ring the guard's phone and bridge them into this call's room (转人工)."""
+    from ..sip_out import dial_guard
+
+    cfg = get_settings()
+    if not (cfg.guard_dial_number and cfg.sip_outbound_trunk_id):
+        return JSONResponse(
+            {"ok": False, "error": "未配置外呼（GUARD_DIAL_NUMBER / SIP_OUTBOUND_TRUNK_ID）"},
+            status_code=400,
+        )
+    ok = await dial_guard(cfg, room)
+    return JSONResponse({"ok": bool(ok)})
+
+
 @app.get("/events/stream")
 async def events_stream() -> StreamingResponse:
     """Server-Sent Events: stream new call-timeline events as they land."""
@@ -422,11 +437,14 @@ function renderAlert(e){
     document.getElementById('alerts').appendChild(el);}
   const esc=e.kind==='escalation';
   el.style.background=esc?'#fdecec':'';el.style.borderColor=esc?'#f3c0c0':'';
+  const dial=esc?'<button class="join" style="border:0;cursor:pointer;margin-left:6px" onclick="dialGuard(\''+e.call_id+'\')">📞 打到我手机</button>':'';
   el.innerHTML=(esc?'⚠️ <b>访客请求转人工</b>　':'📞 <b>有访客来电</b>　')+
     '<span class="muted">'+(e.text||'')+'</span>'+
     '<a class="join" href="/guard_call?room='+encodeURIComponent(e.call_id)+'" target="_blank">'+
-    (esc?'立即介入':'介入通话')+'</a>';
+    (esc?'浏览器介入':'介入通话')+'</a>'+dial;
 }
+async function dialGuard(room){try{const r=await fetch('/api/dial_guard?room='+encodeURIComponent(room),{method:'POST'});
+  const d=await r.json(); alert(d.ok?'正在拨打门卫手机，请接听…':'拨打失败：'+(d.error||'未配置外呼'));}catch(_){alert('拨打失败');}}
 try{const es=new EventSource('/events/stream');
   es.onmessage=m=>{try{renderAlert(JSON.parse(m.data))}catch(_){}};}catch(_){}
 

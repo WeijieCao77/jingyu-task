@@ -100,6 +100,9 @@ class Settings(BaseSettings):
     # 电话端：门卫手机号（逗号分隔 1~2 个）。来电号码在此名单=门卫，转「语音数据助手」问数据；
     #   否则=访客，走登记。留空=所有来电都按访客登记。
     guard_phones: str = ""
+    # 转人工外呼：系统拨这个门卫号码、把他接进当前通话（电话原生介入，AI 让位）。
+    guard_dial_number: str = ""            # 门卫手机号 E.164
+    sip_outbound_trunk_id: str = ""        # LiveKit 出站 SIP trunk id（ST_...）；见 TELEPHONY.md
 
     # ---- Multi-tenant (productization)；留空=单租户（现状不变） ----
     # 指向 tenants.json 即开启：按被叫号码路由到各租户独立的名单/通知/门卫配置。

@@ -129,6 +129,33 @@ def test_whitelist_not_auto_passed_when_disabled(temp_db):
     assert temp_db.recent_visits()[0].status == "pending"  # guard still confirms
 
 
+def test_dial_guard_no_op_when_unconfigured(temp_db):
+    import asyncio
+    import types
+
+    from visitor_agent.sip_out import dial_guard
+
+    # missing trunk/number/livekit → returns False, never raises
+    s = types.SimpleNamespace(guard_dial_number="", sip_outbound_trunk_id="",
+                              livekit_url="", livekit_api_key="", livekit_api_secret="")
+    assert asyncio.run(dial_guard(s, "call-1")) is False
+    # configured but livekit pkg absent here → caught → False (best-effort)
+    s2 = types.SimpleNamespace(guard_dial_number="+8613800138000",
+                               sip_outbound_trunk_id="ST_x", livekit_url="wss://x.livekit.cloud",
+                               livekit_api_key="k", livekit_api_secret="s")
+    assert asyncio.run(dial_guard(s2, "call-1")) is False
+
+
+def test_dial_guard_endpoint_unconfigured(temp_db):
+    from fastapi.testclient import TestClient
+
+    from visitor_agent.web import server as srv
+
+    importlib.reload(srv)
+    r = TestClient(srv.app).post("/api/dial_guard", params={"room": "call-1"})
+    assert r.status_code == 400 and r.json()["ok"] is False
+
+
 def test_notify_room_approved_is_safe_without_livekit(temp_db, monkeypatch):
     # LiveKit configured but the package isn't installed here → must be a silent
     # no-op, never raising into the confirm/gate flow (FR-2 best-effort).

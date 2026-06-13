@@ -290,12 +290,17 @@ async def entrypoint(ctx: JobContext) -> None:
 
         async def _on_escalate(reason) -> None:  # noqa: ANN001
             from .notify import dispatch
+            from .sip_out import dial_guard
 
             base = cfg.public_base_url.rstrip("/")
             link = f"{base}/guard_call?room={ctx.room.name}"
             txt = (f"⚠️ 访客请求转人工{('：' + reason) if reason else ''}\n"
                    f"房间：{ctx.room.name}\n介入：{link}")
             await dispatch.push_alert(cfg, txt)
+            # Phone-native takeover: ring the guard and bridge them in (no-op if
+            # GUARD_DIAL_NUMBER / SIP_OUTBOUND_TRUNK_ID unset). AI yields when the
+            # guard SIP participant ('guard-phone') joins.
+            await dial_guard(cfg, ctx.room.name)
 
         agent = VisitorAgent(reg, on_escalate=_on_escalate)
 

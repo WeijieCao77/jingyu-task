@@ -106,6 +106,35 @@
 - 来电号码在名单 → 路由到 **语音数据助手 `GuardQueryAgent`**（复用 `/ask` 同一套安全只读查询工具，纯语音问答，不登记）；否则按访客登记。留空=所有来电都按访客。
 - 网页端同理用 `GUARD_ACCESS_KEY` 口令守 `/dashboard /ask /admin`（访客的 `/voice` `/qr` 不受影响）。详见 `SETUP_GUIDE.md`。
 
+## 五·六、转人工：系统打电话给门卫（SIP 外呼，电话原生介入）
+
+访客在**电话**里要求转人工时，系统**拨门卫的手机**、把他接进**同一通电话**——门卫像接普通电话一样讲，AI 自动让位。门卫不用开网页/给麦克风权限。后台那条 ⚠️ 提醒也有「📞 打到我手机」按钮可手动再拨。
+
+**原理**：LiveKit **出站 SIP**（`CreateSIPParticipant`）把门卫号码作为 SIP 参与者加入房间；其 identity 以 `guard` 开头 → agent 自动让位（与浏览器介入同一套机制）。
+
+**要配两样（`.env`）**：
+- `GUARD_DIAL_NUMBER`：门卫手机号（E.164，如 `+8613800138000`）。
+- `SIP_OUTBOUND_TRUNK_ID`：LiveKit **出站** trunk id（`ST_...`）。
+
+**建出站 trunk（一次性，交给本地 CC）**：出站要走 Twilio 的 **Termination**（与入站不同）——
+1. Twilio：在你的 Elastic SIP Trunk 上启用 **Termination**，拿到 **Termination SIP URI**（形如 `yourtrunk.pstn.twilio.com`）+ 建一个 **Credential List**（用户名/密码）绑上去。
+2. 跑脚本（本仓库）：
+   ```bash
+   SIP_TERMINATION_URI=yourtrunk.pstn.twilio.com SIP_OUTBOUND_NUMBER=+15863257270 \
+   SIP_TERM_USER=<用户名> SIP_TERM_PASS=<密码> ./scripts/setup_sip_outbound.sh
+   ```
+   把返回的 `ST_...` 填进 `.env` 的 `SIP_OUTBOUND_TRUNK_ID`。
+3. 重启 agent worker。之后访客电话里转人工 → 门卫手机响 → 接听即进通话、AI 让位。
+
+> 给本地 CC 的 prompt：
+> ```
+> 帮我开通"转人工时系统打电话给门卫"。我用现有 .env。我已在 Twilio Elastic SIP Trunk 上启用 Termination、
+> 建好 Credential List。1) 问我要 Termination SIP URI、Twilio 号码、credential 用户名/密码；
+> 2) 跑 scripts/setup_sip_outbound.sh 建 LiveKit 出站 trunk，把返回的 ST_... 写进 .env 的 SIP_OUTBOUND_TRUNK_ID，
+>    再写 GUARD_DIAL_NUMBER=我的门卫手机号；3) 重启 agent worker；4) 我打电话进来说"我要找真人"，
+>    验证我门卫手机是否响、接听后能否和访客通话、AI 是否让位。报错按 docs.livekit.io/sip 调整。
+> ```
+
 ## 六、给本地 Claude Code 的 prompt（你照 §三 注册好账号后用；配置沿用 .env 不再重复问）
 
 ```
