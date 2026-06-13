@@ -98,6 +98,12 @@ class Settings(BaseSettings):
     #   否则=访客，走登记。留空=所有来电都按访客登记。
     guard_phones: str = ""
 
+    # ---- Call lifecycle (auto end the call so the line doesn't stay open) ----
+    # 登记完成并道别后，若访客 N 秒无新发言 → agent 主动挂断；0=不自动挂断。
+    hangup_silence_sec: float = 6.0
+    # 单通电话最长时长（秒）兜底，防异常常开；0=不限制。
+    max_call_sec: int = 180
+
     # ---- Misc ----
     timezone: str = "Asia/Shanghai"
 

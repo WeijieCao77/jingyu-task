@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 
 from dotenv import load_dotenv
 
@@ -299,6 +300,8 @@ async def entrypoint(ctx: JobContext) -> None:
             min_endpointing_delay=cfg.min_endpointing_delay,
         )
 
+    last_user = [time.monotonic()]  # last visitor utterance time (idle watchdog)
+
     # Stream the live transcript to the dashboard (both visitor + guard-query).
     @session.on("conversation_item_added")
     def _on_item(ev) -> None:  # noqa: ANN001
@@ -306,6 +309,8 @@ async def entrypoint(ctx: JobContext) -> None:
             item = ev.item
             role = getattr(item, "role", None)
             text = getattr(item, "text_content", None)
+            if role == "user":
+                last_user[0] = time.monotonic()
             if role in ("user", "assistant") and text:
                 sink("user" if role == "user" else "agent", role, text, None)
         except Exception:  # noqa: BLE001
@@ -390,6 +395,34 @@ async def entrypoint(ctx: JobContext) -> None:
         if is_guard else GREETING
     )
     await _speak(session, cfg, greeting, allow_interruptions=True)
+
+    # FR-4: end the call so the line doesn't stay open. After registration is done
+    # (and the AI has said goodbye), hang up on N seconds of visitor silence; a
+    # global cap guards against anything stuck open. Guard-query calls only get
+    # the global cap. Best-effort — the visitor may have already hung up.
+    if not is_guard and (cfg.hangup_silence_sec or cfg.max_call_sec):
+        async def _idle_watchdog() -> None:
+            t0 = time.monotonic()
+            while True:
+                await asyncio.sleep(1.0)
+                now = time.monotonic()
+                if cfg.max_call_sec and now - t0 > cfg.max_call_sec:
+                    logger.info("max call duration reached → hang up")
+                    break
+                if (cfg.hangup_silence_sec and reg.completed
+                        and now - last_user[0] > cfg.hangup_silence_sec):
+                    logger.info("post-completion silence → hang up")
+                    break
+            try:
+                await session.aclose()
+            except Exception:  # noqa: BLE001
+                logger.exception("watchdog aclose")
+            try:
+                await ctx.room.disconnect()
+            except Exception:  # noqa: BLE001
+                logger.exception("watchdog disconnect")
+
+        asyncio.create_task(_idle_watchdog())
 
 
 def main() -> None:
