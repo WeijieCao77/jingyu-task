@@ -1,0 +1,28 @@
+{
+  "_comment": "多租户示例。复制为 tenants.json 并在 .env 设 TENANTS_PATH=tenants.json 即开启：按被叫号码（入园电话）把每通来电路由到该租户独立的名单/通知/门卫配置。留空=单租户，行为不变。",
+  "tenants": [
+    {
+      "name": "蓝色鲸鱼园区",
+      "numbers": ["+15863257270"],
+      "roster_path": "roster.example.json",
+      "access_list_path": "access.example.json",
+      "notify_channel": "telegram",
+      "telegram_bot_token": "TENANT_A_BOT_TOKEN",
+      "telegram_chat_id": "TENANT_A_CHAT_ID",
+      "guard_access_key": "bluewhale-demo",
+      "guard_phones": "+8613800138000",
+      "public_base_url": "https://bluewhale.example.com"
+    },
+    {
+      "name": "示例园区B",
+      "numbers": ["+8657188889999"],
+      "roster_path": "roster.parkB.json",
+      "access_list_path": "",
+      "notify_channel": "wecom",
+      "wecom_webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=PARK_B_KEY",
+      "guard_access_key": "parkB-demo",
+      "guard_phones": "",
+      "public_base_url": "https://parkb.example.com"
+    }
+  ]
+}

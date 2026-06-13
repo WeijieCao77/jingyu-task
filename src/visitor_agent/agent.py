@@ -210,6 +210,18 @@ async def _decide_guard(ctx: JobContext, cfg) -> bool:
     return False
 
 
+async def _sip_attr(ctx: JobContext, key: str) -> str | None:
+    """Wait briefly for the SIP participant and return one of its attributes
+    (e.g. sip.trunkPhoneNumber = the dialed number, for tenant routing)."""
+    for _ in range(15):  # ~1.5s
+        for p in list(getattr(ctx.room, "remote_participants", {}).values()):
+            v = (getattr(p, "attributes", None) or {}).get(key)
+            if v:
+                return v
+        await asyncio.sleep(0.1)
+    return None
+
+
 def _make_event_sink(call_id: str):
     """Persist dashboard events; never let a logging error break the call."""
 
@@ -236,6 +248,22 @@ async def entrypoint(ctx: JobContext) -> None:
 
     call_id = ctx.room.name or "call"
     sink = _make_event_sink(call_id)
+
+    # Multi-tenant (opt-in): route this call to its tenant by the DIALED number,
+    # so roster/access/notify/guard all use that tenant's config. No-op when
+    # TENANTS_PATH is unset → single-tenant behaviour unchanged.
+    if cfg.tenants_path:
+        try:
+            from .tenant import apply_tenant, resolve_tenant
+
+            dialed = await _sip_attr(ctx, "sip.trunkPhoneNumber")
+            tenant = resolve_tenant(cfg.tenants_path, dialed)
+            if tenant:
+                cfg = apply_tenant(cfg, tenant)
+                sink("tenant", None, f"租户：{tenant.get('name', '?')}", None)
+                logger.info("tenant=%s (dialed %s)", tenant.get("name"), dialed)
+        except Exception:  # noqa: BLE001
+            logger.exception("tenant resolve error")
 
     # A whitelisted guard phoning in goes to the voice DATA assistant (query),
     # not visitor registration. Default (no GUARD_PHONES) → always a visitor.

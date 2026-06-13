@@ -101,6 +101,10 @@ class Settings(BaseSettings):
     #   否则=访客，走登记。留空=所有来电都按访客登记。
     guard_phones: str = ""
 
+    # ---- Multi-tenant (productization)；留空=单租户（现状不变） ----
+    # 指向 tenants.json 即开启：按被叫号码路由到各租户独立的名单/通知/门卫配置。
+    tenants_path: str = ""
+
     # ---- Call lifecycle (auto end the call so the line doesn't stay open) ----
     # 登记完成并道别后，若访客 N 秒无新发言 → agent 主动挂断；0=不自动挂断。
     hangup_silence_sec: float = 6.0
