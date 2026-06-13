@@ -295,7 +295,8 @@ async def entrypoint(ctx: JobContext) -> None:
             base = cfg.public_base_url.rstrip("/")
             link = f"{base}/guard_call?room={ctx.room.name}"
             txt = (f"⚠️ 访客请求转人工{('：' + reason) if reason else ''}\n"
-                   f"房间：{ctx.room.name}\n介入：{link}")
+                   f"房间：{ctx.room.name}\n介入：{link}\n"
+                   f"（电话接听后：按 1 放行、按 2 拒绝）")
             await dispatch.push_alert(cfg, txt)
             # Phone-native takeover: ring the guard and bridge them in (no-op if
             # GUARD_DIAL_NUMBER / SIP_OUTBOUND_TRUNK_ID unset). AI yields when the
@@ -396,6 +397,36 @@ async def entrypoint(ctx: JobContext) -> None:
 
             asyncio.create_task(_announce())
 
+        # Phone keypad (DTMF) takeover: once the guard is in the call, 1=放行
+        # (open gate + record released), 2=拒绝. Only the guard's keys count.
+        @ctx.room.on("sip_dtmf_received")
+        def _on_dtmf(*args) -> None:  # noqa: ANN002 — sig varies by livekit version
+            try:
+                ev = args[0] if args else None
+                digit = getattr(ev, "digit", None) or getattr(ev, "code", None)
+                participant = getattr(ev, "participant", None) or (
+                    args[1] if len(args) > 1 else None)
+                identity = getattr(participant, "identity", "") or ""
+            except Exception:  # noqa: BLE001
+                return
+            if identity and not identity.startswith("guard"):
+                return
+            d = str(digit)
+            from . import takeover
+            if d == "1":
+                sink("confirmed", None, "门卫电话按键放行（1）", None)
+                try:
+                    takeover.release(reg.info.to_dict(),
+                                     getattr(reg.notifier, "last_visit_id", None), cfg.timezone)
+                except Exception:  # noqa: BLE001
+                    logger.exception("dtmf release error")
+            elif d == "2":
+                sink("escalation", None, "门卫电话按键拒绝放行（2）", None)
+                try:
+                    takeover.deny(reg.info.to_dict())
+                except Exception:  # noqa: BLE001
+                    logger.exception("dtmf deny error")
+
         # Human takeover: a guard joining (identity 'guard*') makes the AI hand off.
         @ctx.room.on("participant_connected")
         def _on_participant(participant) -> None:  # noqa: ANN001
@@ -404,11 +435,14 @@ async def entrypoint(ctx: JobContext) -> None:
                 _prefill_caller_phone(participant)  # SIP caller joined → prefill
                 return
             sink("human_joined", None, f"保安已接入通话（{identity}）", None)
+            # A dialed-in guard ('guard-phone') decides with the keypad → tell them.
+            line = ("门卫师傅您好，您已接入。和访客核对后，按 1 放行、按 2 拒绝。"
+                    if identity == "guard-phone"
+                    else "门卫师傅来了，由他来跟您说，再见。")
 
             async def _handoff() -> None:
                 try:
-                    await _speak(session, cfg, "门卫师傅来了，由他来跟您说，再见。",
-                                 allow_interruptions=False)
+                    await _speak(session, cfg, line, allow_interruptions=False)
                 except Exception:  # noqa: BLE001
                     logger.exception("handoff say error")
                 finally:

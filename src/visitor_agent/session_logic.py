@@ -246,6 +246,7 @@ class LiveNotifier:
     def __init__(self, settings, room: str | None = None) -> None:
         self.s = settings
         self.room = room  # LiveKit room of the live call (for the approved ping)
+        self.last_visit_id: int | None = None  # so a DTMF release can confirm it
 
     async def notify(self, info: dict) -> str:
         import secrets
@@ -257,6 +258,7 @@ class LiveNotifier:
             info["room"] = self.room
         token = secrets.token_urlsafe(16)
         visit = repo.create_visit(info, confirm_token=token, status="pending")
+        self.last_visit_id = visit.id
         confirm_url = f"{self.s.public_base_url.rstrip('/')}/confirm?token={token}"
 
         # Whitelist fast-track: if enabled, a pre-approved visitor is confirmed

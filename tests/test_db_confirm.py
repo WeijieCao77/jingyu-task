@@ -129,6 +129,32 @@ def test_whitelist_not_auto_passed_when_disabled(temp_db):
     assert temp_db.recent_visits()[0].status == "pending"  # guard still confirms
 
 
+def test_takeover_release_creates_confirmed_and_opens_gate(temp_db, monkeypatch):
+    from visitor_agent import takeover
+    from visitor_agent.notify import gate
+
+    opened = {}
+    monkeypatch.setattr(gate, "open_gate", lambda **kw: opened.update(kw) or True)
+
+    # no existing visit → create a confirmed one from collected info + open gate
+    vid = takeover.release({"plate": "沪A12345", "company": "蓝色鲸鱼"}, None)
+    v = temp_db.get_visit_by_id(vid)
+    assert v.status == "confirmed" and opened.get("plate") == "沪A12345"
+    assert v.entry_time  # stamped
+
+
+def test_takeover_release_confirms_existing_visit(temp_db, monkeypatch):
+    from visitor_agent import takeover
+    from visitor_agent.notify import gate
+
+    monkeypatch.setattr(gate, "open_gate", lambda **kw: True)
+    existing = temp_db.create_visit({"plate": "沪A1"}, "tkk", status="pending")
+    vid = takeover.release({"plate": "沪A1"}, existing.id)
+    assert vid == existing.id and temp_db.get_visit_by_id(existing.id).status == "confirmed"
+    # exactly one row (no duplicate created)
+    assert len(temp_db.recent_visits()) == 1
+
+
 def test_dial_guard_no_op_when_unconfigured(temp_db):
     import asyncio
     import types

@@ -159,6 +159,10 @@
 
 ## 2026-06-13
 
+### v0.28 — 门卫电话按键决定（DTMF）：接进来后按 1 放行 / 2 拒绝
+> 续 v0.27：门卫被接进电话、核对后**直接按键决定**，不用回后台。
+- **改动**：agent 注册 `sip_dtmf_received`——仅认门卫（identity `guard*`）按键：**1=放行**（`takeover.release`：有 AI 已建的访客行就确认它、否则用已采集信息建一条 confirmed，开闸+留痕）；**2=拒绝**（`takeover.deny` 留痕、不抬杆）。`LiveNotifier.last_visit_id` 让放行确认到正确的行、不重复建。接通时 AI 念"按1放行/按2拒绝"提示门卫，Telegram 提醒也注明。`takeover.py` 纯 DB+gate，含单测（建新行/确认既有行不重复）。测试 91→93。
+
 ### v0.27 — 转人工电话原生介入：系统打电话给门卫，把他接进通话
 > 用户问："电话访客转人工时，门卫怎么进这通电话？"决策=**打给门卫**。
 - **改动**：`sip_out.dial_guard()` 用 LiveKit 出站 SIP（`CreateSIPParticipant`）拨 `GUARD_DIAL_NUMBER`、
