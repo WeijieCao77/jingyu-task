@@ -159,6 +159,15 @@
 
 ## 2026-06-13
 
+### v0.27 — 转人工电话原生介入：系统打电话给门卫，把他接进通话
+> 用户问："电话访客转人工时，门卫怎么进这通电话？"决策=**打给门卫**。
+- **改动**：`sip_out.dial_guard()` 用 LiveKit 出站 SIP（`CreateSIPParticipant`）拨 `GUARD_DIAL_NUMBER`、
+  把门卫作为 SIP 参与者（identity `guard-phone`）接进**同一通电话**房间 → AI 自动让位；门卫像接普通电话一样讲，
+  无需开网页/麦克风权限。转人工时（`_on_escalate`）自动外呼；后台 ⚠️ 提醒加「📞 打到我手机」手动再拨
+  （`POST /api/dial_guard`，门卫鉴权）。`scripts/setup_sip_outbound.sh` + `TELEPHONY.md §5.6`（Twilio
+  Termination → LiveKit 出站 trunk）+ 本地 CC prompt。未配 `GUARD_DIAL_NUMBER/SIP_OUTBOUND_TRUNK_ID` 时 no-op。
+- **计划变更**：转人工从"浏览器加入同房间"补上"电话原生介入"（更适合门岗手机场景）；浏览器介入仍可用（远程需 https）。测试 89→91。
+
 ### v0.26 — 自主夜间：真机电话反馈落地(FR-3~9) + 模型效率/准确 + 多租户产品化起步
 > 用户提交了真机电话验收的全部反馈（4 份本地报告）并授权"自主迭代 + 三层升级（操作/模型架构/产品化）+ 每层有计划有提升并记录"。本轮一次性落地（离线测试 75→89 全绿，含"真 .env 在场也全绿"）：
 - **操作层（真机电话反馈）**：
