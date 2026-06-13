@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # （OpenRouter / 阿里 DashScope-compat / DeepSeek / Moonshot / 火山 等），
     # LLM_MODEL 填该端点的模型名，OPENAI_API_KEY 填该端点的 key。留空=用官方 OpenAI。
     llm_base_url: str = ""
+    # 模型分层：门卫数据查询 Agent 可用与对话大脑不同的模型（留空=同 LLM_MODEL）。
+    # 查询要"会用工具、算时间范围"，可上稍强模型；省钱也可保持便宜模型。
+    guard_query_model: str = ""
 
     # ---- STT ----
     stt_provider: str = "openai"

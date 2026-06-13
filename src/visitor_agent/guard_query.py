@@ -118,7 +118,9 @@ def _system_prompt(cfg) -> str:
         f"当前时间是 {now.isoformat()}（{cfg.timezone}）。"
         "需要时间范围时（本周/今天/这个月等）请自行换算成 ISO8601 传给工具。"
         "支持追问：结合上文理解'那上个月呢''他呢'这类省略问法。"
-        "用简短中文口语回答，给出具体数字；问不到的礼貌说明。"
+        "**回答前必须先调用查询工具拿到真实数据，严禁凭空报数字或拒答**；"
+        "只有工具确实返回空/0 时才说没有。问放行数量时记得用 status=confirmed。"
+        "用简短中文口语回答，给出具体数字。"
     )
 
 
@@ -148,8 +150,11 @@ def _answer_openai(question: str, model: str, max_steps: int,
     messages = [{"role": "system", "content": _system_prompt(cfg)}]
     messages += _clean_history(history)
     messages.append({"role": "user", "content": question})
-    for _ in range(max_steps):
-        resp = client.chat.completions.create(model=model, messages=messages, tools=tools)
+    for i in range(max_steps):
+        kwargs = {"model": model, "messages": messages, "tools": tools}
+        if i == 0:
+            kwargs["tool_choice"] = "required"  # must query the DB, never guess/refuse
+        resp = client.chat.completions.create(**kwargs)
         msg = resp.choices[0].message
         if not msg.tool_calls:
             return (msg.content or "").strip()
@@ -178,11 +183,12 @@ def _answer_anthropic(question: str, model: str, max_steps: int,
     cfg = get_settings()
     client = anthropic.Anthropic(api_key=cfg.anthropic_api_key or None)
     messages: list[dict] = _clean_history(history) + [{"role": "user", "content": question}]
-    for _ in range(max_steps):
-        resp = client.messages.create(
-            model=model, max_tokens=1024, system=_system_prompt(cfg),
-            tools=TOOLS, messages=messages,
-        )
+    for i in range(max_steps):
+        kwargs = dict(model=model, max_tokens=1024, system=_system_prompt(cfg),
+                      tools=TOOLS, messages=messages)
+        if i == 0:
+            kwargs["tool_choice"] = {"type": "any"}  # must query the DB first
+        resp = client.messages.create(**kwargs)
         if resp.stop_reason != "tool_use":
             return "".join(b.text for b in resp.content if b.type == "text").strip()
         messages.append({"role": "assistant", "content": resp.content})
@@ -201,7 +207,9 @@ def answer_question(question: str, history: list[dict] | None = None,
     uses whichever LLM provider is configured."""
     cfg = get_settings()
     repo.init_db(cfg.database_url)
-    model = model or cfg.llm_model
+    # Model tiering: the query agent can run a different (cheaper/stronger) model
+    # than the conversational brain — GUARD_QUERY_MODEL, else fall back to LLM_MODEL.
+    model = model or cfg.guard_query_model or cfg.llm_model
     if cfg.llm_provider == "anthropic":
         return _answer_anthropic(question, model, max_steps, history)
     return _answer_openai(question, model, max_steps, history)

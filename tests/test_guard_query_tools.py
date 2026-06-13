@@ -51,6 +51,22 @@ def test_count_by_released_status(temp_db):
     assert '"count": 1' in guard_query.run_tool("count_visits", {"status": "pending"})
 
 
+def test_guard_query_model_tiering(temp_db, monkeypatch):
+    from visitor_agent import config, guard_query
+
+    monkeypatch.setenv("GUARD_QUERY_MODEL", "gpt-4o")
+    config.get_settings.cache_clear()
+    captured = {}
+
+    def fake_openai(q, model, max_steps, history=None):
+        captured["model"] = model
+        return "ok"
+
+    monkeypatch.setattr(guard_query, "_answer_openai", fake_openai)
+    assert guard_query.answer_question("多少车") == "ok"
+    assert captured["model"] == "gpt-4o"   # used GUARD_QUERY_MODEL, not LLM_MODEL
+
+
 def test_clean_history_filters_bad_turns():
     from visitor_agent.guard_query import _clean_history
 
