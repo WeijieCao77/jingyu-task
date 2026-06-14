@@ -9,7 +9,7 @@ dashboard).
 
 from __future__ import annotations
 
-from . import discord, telegram, wecom, wecom_app
+from . import discord, pushplus, telegram, wecom, wecom_app
 
 
 async def _send_one(settings, channel: str, visit: dict, confirm_url: str) -> bool:
@@ -26,6 +26,8 @@ async def _send_one(settings, channel: str, visit: dict, confirm_url: str) -> bo
             settings.wecom_corp_id, settings.wecom_app_secret, settings.wecom_agent_id,
             visit, confirm_url,
         )
+    if channel == "pushplus":
+        return await pushplus.send_visitor_card(settings.pushplus_token, visit, confirm_url)
     print(f"[NOTIFY] 未知渠道 {channel}，卡片内容：", visit, confirm_url)
     return False
 
@@ -56,6 +58,8 @@ async def _alert_one(settings, channel: str, text: str) -> bool:
         return await wecom_app.send_text(
             settings.wecom_corp_id, settings.wecom_app_secret, settings.wecom_agent_id, text
         )
+    if channel == "pushplus":
+        return await pushplus.send_text(settings.pushplus_token, text)
     return False
 
 

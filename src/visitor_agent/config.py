@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # ---- Guard notification channel ----
     # "none" = 保安直接在 Dashboard 上点确认（零账号，默认）。
     # 也可 discord / telegram（美国可用，需各自账号）；wecom 为生产渠道。
-    notify_channel: str = "none"             # none | discord | telegram | wecom | wecom_app
+    notify_channel: str = "none"             # none | discord | telegram | wecom | wecom_app | pushplus
     discord_webhook_url: str = ""
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
@@ -61,6 +61,8 @@ class Settings(BaseSettings):
     wecom_corp_id: str = ""                  # 企业ID corpid
     wecom_agent_id: str = ""                 # 自建应用 AgentId
     wecom_app_secret: str = ""              # 自建应用 Secret
+    # 备选渠道：PushPlus → 个人微信（NOTIFY_CHANNEL=pushplus）。关注 pushplus 公众号拿 token。
+    pushplus_token: str = ""
 
     # ---- Confirm web server ----
     public_base_url: str = "http://localhost:8080"
