@@ -1,8 +1,13 @@
 # --- Voice agent runtime (telephony pipeline) ---
-livekit-agents[silero,turn-detector]~=1.5
-livekit-plugins-openai~=1.5
-livekit-plugins-anthropic~=1.5
-livekit-plugins-silero~=1.5
+# Pinned to 1.5.17 (the tested, working version). DO NOT loosen to ~=1.5:
+# livekit-agents 1.6.0 added a hard check that rejects RealtimeModel + server-side
+# turn_detection together with AgentSession(allow_interruptions=False) — which is
+# exactly our anti-echo/anti-吞字 config — and crashes every call's job on session.start.
+livekit-agents[silero,turn-detector]==1.5.17
+livekit-plugins-openai==1.5.17
+livekit-plugins-anthropic==1.5.17
+livekit-plugins-silero==1.5.17
+livekit-plugins-turn-detector==1.5.17
 livekit-api>=1.0          # mint join tokens for the in-browser voice client
 
 # Windows lacks the IANA tz DB that zoneinfo (Asia/Shanghai) needs at runtime.
