@@ -9,10 +9,11 @@
 
 ---
 
-## 🧭 想快速了解，从这三篇开始
-1. **[README.md](README.md)** —— 一页总览：架构图 + 部署 + 环境变量。
-2. **[PRODUCT_FLOW.md](PRODUCT_FLOW.md)** —— 全流程 + 访客/管理者双视角 + 产品决策点（**产品评审看这篇**）。
-3. **[FRAMEWORK_RESEARCH.md](FRAMEWORK_RESEARCH.md)** —— 框架市场调研：为什么选 LiveKit、竞品优势、为什么不用（**答辩选型看这篇**）。
+## 🧭 想快速了解，从这几篇开始
+1. **[README.md](README.md)** —— 一页速览：架构图 + 部署 + 环境变量。
+2. **[GUIDE.md](GUIDE.md)** ⭐ —— **详细操作指南**：跑通 / 部署（本地 + Windows + 云端）/ 环境变量全表 / 演示 / 排错，自包含一站式。
+3. **[PRODUCT_FLOW.md](PRODUCT_FLOW.md)** —— 全流程 + 访客/管理者双视角 + 产品决策点（**产品评审看这篇**）。
+4. **[FRAMEWORK_RESEARCH.md](FRAMEWORK_RESEARCH.md)** —— 框架市场调研：为什么选 LiveKit、竞品优势、为什么不用（**答辩选型看这篇**）。
 
 > 👉 **你（人）要做账号/操作 + 给本地 CC 的 prompt，看这一篇：[SETUP_GUIDE.md](SETUP_GUIDE.md)**（v0.23 总指南，含电话/Telegram/黑白名单/FR-2 验证 prompt）。
 

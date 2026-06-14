@@ -1,67 +1,53 @@
 # 🐳 园区语音访客登记 Voice Agent
 
-> 📚 **所有文档索引见 [DOCS.md](DOCS.md)**；🧭 **你要做的账号/操作 + 给本地 CC 的 prompt 看 [SETUP_GUIDE.md](SETUP_GUIDE.md)**；电话接入看 [TELEPHONY.md](TELEPHONY.md)。
+未登记车辆拨打入口电话 → AI 门卫**自然中文对话**采集（车牌 / 单位 / 手机 / 事由）→ 结构化信息推送保安微信 → 保安点确认远程放行。**Agent 开口到推送 ≤25 秒**，默认 realtime 语音到语音（首句 ≈1.4s）。
 
-未登记车辆**拨打入口号码**（或扫码/浏览器）→ AI 门卫**自然中文对话**采集（车牌/单位/手机/事由）→ 推送保安（Dashboard/微信/Telegram）→ 保安确认 → 抬杆。**Agent 开口到推送 ≤25 秒**。默认 **realtime 语音**（首句 ≈1.4s）。电话接入见 [TELEPHONY.md](TELEPHONY.md)。
+> 📞 **在线试拨**：**+1 586 325 7270** ｜ 🌐 后台 https://web-production-d105c.up.railway.app （`/dashboard` 实时后台 · `/ask` 数据助手 · `/admin` 常客，门卫口令 `demo123`）
+> 📖 **详细操作 / 部署 / 排错 → [GUIDE.md](GUIDE.md)**；全部文档索引 → [DOCS.md](DOCS.md)。
 
 ## 架构
 
 ```mermaid
 flowchart LR
-    V["📱 访客：电话(Twilio→LiveKit SIP) / 扫码 / 浏览器麦克风"] --> LK["LiveKit Room（每通独立·并发）"]
+    V["📱 访客拨电话<br/>Twilio → LiveKit SIP"] --> LK["LiveKit Cloud<br/>每通独立房间·并发"]
     LK <--> W["🤖 Agent Worker"]
-    subgraph P["语音引擎（env 切）：realtime s2s(默认) ／ pipeline 回退"]
-      STT["STT zh"] --> LLM["LLM 填槽"] --> TTS["TTS 中文"]
-    end
-    W --- P
-    W -->|登记完成| N["保安通知：Dashboard 点放行(默认)<br/>可选 Discord/Telegram/企业微信"]
-    W --> DB[("SQLite / Neon<br/>visits · call_events")]
-    DB --> D["📊 /dashboard 实时后台 · /admin 常客画像"]
-    N --> C["/confirm 校验 token"] --> G["抬杆：海康 ISAPI(配后真调) / stub"]
-    DB -.-> Q["门卫查询 Agent（自然语言）"]
+    W --> ENG["语音引擎 env 切<br/>realtime s2s 默认 / STT→LLM→TTS 回退"]
+    W -->|登记完成| N["保安通知<br/>企业微信 / Telegram + Dashboard 点放行"]
+    W --> DB[("Postgres / SQLite<br/>visits · call_events")]
+    DB --> Q["门卫查询 /ask · 回访识别 · 常客 /admin"]
+    N --> G["确认 → 抬杆 海康 ISAPI / stub"]
 ```
 
-选型：**LiveKit Agents**（原生 SIP/打断/并发）+ **realtime speech-to-speech**（默认，提速）/ STT→LLM→TTS pipeline（可回退）；全 OpenAI 单 key，全部 env 可切。**每个决策的理由+优势+根因+是否跟模型相关见 [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md)**；另见 [FRAMEWORK_RESEARCH.md](FRAMEWORK_RESEARCH.md)、[ARCHITECTURE_AB.md](ARCHITECTURE_AB.md)、[DESIGN.md](DESIGN.md)。
+**选型**：LiveKit Agents（原生 SIP / 打断 / 并发）+ OpenAI realtime speech-to-speech（默认，提速）/ STT→LLM→TTS pipeline（可回退、可换任意模型，全 env 切换）。完整理由见 [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) · [FRAMEWORK_RESEARCH.md](FRAMEWORK_RESEARCH.md)。
 
 ## 部署（本地 demo，约 5 分钟）
 
 ```bash
 python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
-cp .env.example .env && mkdir -p data        # 填 OPENAI_API_KEY（唯一必填密钥）
-PYTHONPATH=src python -m visitor_agent.agent download-files   # 预下载 VAD/转向模型
-docker run -d --name livekit-dev -p 7880:7880 -p 7881:7881 -p 7882:7882/udp \
-  livekit/livekit-server --dev               # 本地 LiveKit（devkey/secret，无需账号）
-
-./scripts/run_web.sh        # 终端A → /voice 说话页 · /dashboard 后台 · /ask 数据助手(对话式) · /admin 常客
-./scripts/run_agent.sh dev  # 终端B → 语音 worker
-# 打开 http://localhost:8080/voice 点"接入门卫"对话；后台点"✅放行"
+cp .env.example .env && mkdir -p data          # 填 OPENAI_API_KEY（唯一必填密钥）
+docker run -d -p 7880:7880 -p 7881:7881 -p 7882:7882/udp livekit/livekit-server --dev
+./scripts/run_web.sh         # 终端A → :8080  /dashboard · /ask · /admin
+./scripts/run_agent.sh dev   # 终端B → 语音 worker
+# 无麦克风/电话的文本仿真：./scripts/run_sim.sh --scenario scenarios/songhuo.json --live
 ```
 
-> **Windows / ARM64 / 无 Docker**：ARM64 须用 **x64 Python**（`livekit-blingfire` 无 win_arm64 wheel，x64 模拟可跑）；LiveKit 用原生二进制 `livekit-server.exe --dev` 或直接 **LiveKit Cloud**。详见 [SMOKE_CHECK.md](SMOKE_CHECK.md) §C5（PowerShell 命令对照）。
-> **产品升级路线**（操作体验 / 模型效率成本 / 多租户产品化）见 [UPGRADE_PLAN.md](UPGRADE_PLAN.md)。
-> **☎️ 拨号进来（核心需求）**：用 LiveKit Cloud + Twilio SIP，`SIP_INBOUND_NUMBER=+1... ./scripts/setup_sip.sh` 建好入站规则即可拨打——全程见 [TELEPHONY.md](TELEPHONY.md)。
-
-无语音快速验证：`./scripts/run_sim.sh --scenario scenarios/songhuo.json --live`（文本仿真，同一套逻辑）。更多演示场景见 `scenarios/`：黑名单 `d_blacklist`、字母车牌消歧 `s2_letters`、改手机号只复述改动项 `s3_changephone`、手机位数校验 `s4_shortphone`、公司不在名单 `s5_unknownco`、参观无接待方 `s7_visit`、单位名单纠正 `roster_test`。
-**演示数据**（试门卫查询 `/ask` + 回访识别 + 黑白名单）：`PYTHONPATH=src python scripts/seed_demo.py` 写入 21 条访客（含 5 个常客）；名单见 `roster.demo.json`（12 家公司）/ `access.demo.json`（常客+黑名单），`.env.example` 已默认指向它们。
-**☁️ 全云端常驻**（Railway + LiveKit Cloud + Postgres，push 自动上线、电脑可关机）见 [DEPLOY.md](DEPLOY.md)。
-测试：`PYTHONPATH=src pytest -q`。电话/扫码/教程：[SETUP_CHECKLIST.md](SETUP_CHECKLIST.md) · [QR_DEMO.md](QR_DEMO.md) · [ACCEPTANCE_PROMPT.md](ACCEPTANCE_PROMPT.md)（一键验收）· [USER_TODO.md](USER_TODO.md)（密钥教程）。
+> **Windows / ARM64**、**电话接入（Twilio SIP）**、**全云端常驻（Railway + LiveKit Cloud + Postgres，push 自动上线）** 的完整步骤都在 **[GUIDE.md](GUIDE.md)**。
 
 ## 环境变量（`.env`，已 gitignore，密钥永不上传）
 
-| 变量 | 默认/说明 |
+| 变量 | 默认 / 说明 |
 |---|---|
-| `OPENAI_API_KEY` | **唯一必填**（STT+LLM+TTS / realtime 全 OpenAI） |
-| `VOICE_MODE` | `realtime`(默认 s2s 提速，需 gpt-realtime 权限) / `pipeline`(回退) |
-| `SIP_INBOUND_NUMBER` | 电话接入号码（E.164）；配合 `scripts/setup_sip.sh`，见 TELEPHONY.md |
-| `ROSTER_PATH` `ACCESS_LIST_PATH` | 公司名单纠正 / 黑白名单（留空=关）；见 `*.example.json` |
-| `LLM_PROVIDER` `LLM_MODEL` | `openai`/`gpt-4o-mini`；可切 `anthropic`/`claude-haiku-4-5`（需 `ANTHROPIC_API_KEY`） |
-| `STT_*` `TTS_*` | `openai` 默认；可切 `deepgram` / `azure`(zh-CN 音色) |
-| `LIVEKIT_URL/API_KEY/API_SECRET` | 本地 dev：`ws://localhost:7880`/`devkey`/`secret`；云：LiveKit Cloud 免费版 |
-| `NOTIFY_CHANNEL` | `none`(后台点放行，默认) / `telegram` / `wecom`(企业微信群机器人 webhook，已实测) / `wecom_app`(企业微信自建应用，需固定出口IP) / `pushplus`(个人微信) / `discord`；逗号可多选 |
-| `DATABASE_URL` | `sqlite:///./data/visits.db`；生产换 Neon Postgres URL |
-| `PUBLIC_BASE_URL` `WEB_PORT` `TIMEZONE` | `http://localhost:8080` / `8080` / `Asia/Shanghai` |
-| `HIKVISION_URL/USER/PASSWORD/CHANNEL` | 留空=抬杆 stub；配上=真实海康 ISAPI |
+| `OPENAI_API_KEY` | **唯一必填**（STT + LLM + TTS / realtime 全 OpenAI） |
+| `VOICE_MODE` | `realtime`(默认 s2s 提速) / `pipeline`(回退，可换任意模型) |
+| `LIVEKIT_URL` `API_KEY` `API_SECRET` | 本地 dev `ws://localhost:7880` / `devkey` / `secret`；电话接入需 LiveKit Cloud |
+| `NOTIFY_CHANNEL` | `none`(后台点放行) / `wecom`(企业微信群机器人,已上线) / `telegram` / `pushplus` / `discord`，逗号可多选 |
+| `DATABASE_URL` | `sqlite:///./data/visits.db`；生产换 Postgres |
+| `SIP_INBOUND_NUMBER` `GUARD_PHONES` | 入园电话号码 / 门卫查询手机白名单 |
 
-公共仓库使用：他人 `clone → cp .env.example .env → 填自己的 key` 即可，互不影响。
-加分项：回访识别(车牌/手机/姓名画像)✅ · **门卫数据助手 `/ask`（对话式·多轮追问·LLM 工具查询）✅** · 常客名单 `/admin`✅ · 多路并发✅ · 黑白名单(登记不放行)✅ · 放行后 AI 语音播报✅ · Serverless 分层(见 DESIGN)。
-变更日志 [CHANGELOG.md](CHANGELOG.md) · 进度 [PROGRESS.md](PROGRESS.md) · 首跑排查 [SMOKE_CHECK.md](SMOKE_CHECK.md)
+> 完整变量（realtime 抗噪音调参、roster 名单匹配、黑白名单、海康抬杆、多租户等）见 [.env.example](.env.example) 与 [GUIDE.md](GUIDE.md)。
+
+## 加分项（均已实现）
+
+回访识别 ✅ · 门卫数据助手 `/ask`（对话式 · 多轮追问 · LLM 工具查询）✅ · 常客名单 `/admin` ✅ · 多路并发 ✅ · 黑白名单拦截 ✅ · 放行后 AI 语音播报 ✅ · 全云端 Serverless 部署 + GitHub 自动上线 ✅
+
+测试：`PYTHONPATH=src pytest -q` → **94 passed**。
