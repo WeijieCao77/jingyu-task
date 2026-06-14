@@ -41,7 +41,7 @@ docker run -d --name livekit-dev -p 7880:7880 -p 7881:7881 -p 7882:7882/udp \
 > **产品升级路线**（操作体验 / 模型效率成本 / 多租户产品化）见 [UPGRADE_PLAN.md](UPGRADE_PLAN.md)。
 > **☎️ 拨号进来（核心需求）**：用 LiveKit Cloud + Twilio SIP，`SIP_INBOUND_NUMBER=+1... ./scripts/setup_sip.sh` 建好入站规则即可拨打——全程见 [TELEPHONY.md](TELEPHONY.md)。
 
-无语音快速验证：`./scripts/run_sim.sh --scenario scenarios/songhuo.json --live`（文本仿真，同一套逻辑）。
+无语音快速验证：`./scripts/run_sim.sh --scenario scenarios/songhuo.json --live`（文本仿真，同一套逻辑）。更多演示场景见 `scenarios/`：黑名单 `d_blacklist`、字母车牌消歧 `s2_letters`、改手机号只复述改动项 `s3_changephone`、手机位数校验 `s4_shortphone`、公司不在名单 `s5_unknownco`、参观无接待方 `s7_visit`、单位名单纠正 `roster_test`。
 **演示数据**（试门卫查询 `/ask` + 回访识别 + 黑白名单）：`PYTHONPATH=src python scripts/seed_demo.py` 写入 21 条访客（含 5 个常客）；名单见 `roster.demo.json`（12 家公司）/ `access.demo.json`（常客+黑名单），`.env.example` 已默认指向它们。
 **☁️ 全云端常驻**（Railway + LiveKit Cloud + Postgres，push 自动上线、电脑可关机）见 [DEPLOY.md](DEPLOY.md)。
 测试：`PYTHONPATH=src pytest -q`。电话/扫码/教程：[SETUP_CHECKLIST.md](SETUP_CHECKLIST.md) · [QR_DEMO.md](QR_DEMO.md) · [ACCEPTANCE_PROMPT.md](ACCEPTANCE_PROMPT.md)（一键验收）· [USER_TODO.md](USER_TODO.md)（密钥教程）。
