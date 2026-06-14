@@ -42,6 +42,8 @@ docker run -d --name livekit-dev -p 7880:7880 -p 7881:7881 -p 7882:7882/udp \
 > **☎️ 拨号进来（核心需求）**：用 LiveKit Cloud + Twilio SIP，`SIP_INBOUND_NUMBER=+1... ./scripts/setup_sip.sh` 建好入站规则即可拨打——全程见 [TELEPHONY.md](TELEPHONY.md)。
 
 无语音快速验证：`./scripts/run_sim.sh --scenario scenarios/songhuo.json --live`（文本仿真，同一套逻辑）。
+**演示数据**（试门卫查询 `/ask` + 回访识别 + 黑白名单）：`PYTHONPATH=src python scripts/seed_demo.py` 写入 21 条访客（含 5 个常客）；名单见 `roster.demo.json`（12 家公司）/ `access.demo.json`（常客+黑名单），`.env.example` 已默认指向它们。
+**☁️ 全云端常驻**（Railway + LiveKit Cloud + Postgres，push 自动上线、电脑可关机）见 [DEPLOY.md](DEPLOY.md)。
 测试：`PYTHONPATH=src pytest -q`。电话/扫码/教程：[SETUP_CHECKLIST.md](SETUP_CHECKLIST.md) · [QR_DEMO.md](QR_DEMO.md) · [ACCEPTANCE_PROMPT.md](ACCEPTANCE_PROMPT.md)（一键验收）· [USER_TODO.md](USER_TODO.md)（密钥教程）。
 
 ## 环境变量（`.env`，已 gitignore，密钥永不上传）
@@ -55,7 +57,7 @@ docker run -d --name livekit-dev -p 7880:7880 -p 7881:7881 -p 7882:7882/udp \
 | `LLM_PROVIDER` `LLM_MODEL` | `openai`/`gpt-4o-mini`；可切 `anthropic`/`claude-haiku-4-5`（需 `ANTHROPIC_API_KEY`） |
 | `STT_*` `TTS_*` | `openai` 默认；可切 `deepgram` / `azure`(zh-CN 音色) |
 | `LIVEKIT_URL/API_KEY/API_SECRET` | 本地 dev：`ws://localhost:7880`/`devkey`/`secret`；云：LiveKit Cloud 免费版 |
-| `NOTIFY_CHANNEL` | `none`(后台点放行，默认) / `discord` / `telegram` / `wecom` |
+| `NOTIFY_CHANNEL` | `none`(后台点放行，默认) / `telegram` / `wecom`(企业微信群机器人 webhook，已实测) / `wecom_app`(企业微信自建应用，需固定出口IP) / `pushplus`(个人微信) / `discord`；逗号可多选 |
 | `DATABASE_URL` | `sqlite:///./data/visits.db`；生产换 Neon Postgres URL |
 | `PUBLIC_BASE_URL` `WEB_PORT` `TIMEZONE` | `http://localhost:8080` / `8080` / `Asia/Shanghai` |
 | `HIKVISION_URL/USER/PASSWORD/CHANNEL` | 留空=抬杆 stub；配上=真实海康 ISAPI |
