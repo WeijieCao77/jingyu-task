@@ -87,7 +87,7 @@ class RegistrationSession:
     @staticmethod
     def _access_summary(m: dict) -> str:
         """One-line blacklist/whitelist summary for the card."""
-        label = "⛔ 黑名单" if m.get("status") == "blacklist" else "✅ 白名单"
+        label = "⛔ 黑名单" if m.get("status") == "blacklist" else "✅ 常客"
         by = "车牌" if m.get("matched_on") == "plate" else "手机"
         parts = [label] + ([m["name"]] if m.get("name") else []) + (
             [m["reason"]] if m.get("reason") else []
@@ -263,7 +263,7 @@ class LiveNotifier:
 
         # Whitelist fast-track: if enabled, a pre-approved visitor is confirmed
         # and the gate opens immediately (no guard tap). Off by default — the
-        # card still flags ✅白名单 and the guard confirms. Blacklist never auto-passes.
+        # card still flags ✅常客 and the guard confirms. Blacklist never auto-passes.
         if (
             info.get("access_status") == "whitelist"
             and getattr(self.s, "auto_pass_whitelist", False)
@@ -271,8 +271,8 @@ class LiveNotifier:
             repo.mark_confirmed_by_id(visit.id)
             gate.open_gate(visit_id=visit.id, plate=visit.plate)
             cid = f"visit-{visit.id}"
-            repo.log_event(cid, "confirmed", text=f"白名单自动放行 {visit.plate or ''}")
-            repo.log_event(cid, "gate", text="已发送抬杆指令 (白名单自动)")
+            repo.log_event(cid, "confirmed", text=f"常客自动放行 {visit.plate or ''}")
+            repo.log_event(cid, "gate", text="已发送抬杆指令 (常客自动)")
 
         await dispatch.push(self.s, info, confirm_url)
         return confirm_url

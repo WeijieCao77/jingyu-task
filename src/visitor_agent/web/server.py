@@ -460,7 +460,7 @@ async function visits(){try{const r=await fetch('/api/visits');const d=await r.j
    const btn=v.access_status==='blacklist'?'<span class="pill bad">⛔ 禁止放行</span>'
      :(v.status==='confirmed'?'':'<button class="go" onclick="confirmVisit('+v.id+')">放行</button>');
    const flag=v.access_status==='blacklist'?'<span class="pill bad">⛔黑名单</span> ':
-              v.access_status==='whitelist'?'<span class="pill vip">✅白名单</span> ':'';
+              v.access_status==='whitelist'?'<span class="pill vip">✅常客</span> ':'';
    const cls=seen.has(v.id)?'':'new'; seen.add(v.id);
    return '<tr class="'+cls+'"><td class="plate">'+flag+(v.plate||'—')+'</td><td>'+(v.company||'—')+
      '</td><td>'+(v.reason||'—')+'</td><td>'+(v.phone||'—')+'</td><td>'+(v.name||'—')+

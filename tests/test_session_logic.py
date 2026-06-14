@@ -85,7 +85,7 @@ def test_whitelist_flags_payload():
     reg.record(plate="沪A1", company="蓝色鲸鱼", reason="送货", phone="13800138000")
     pushed = asyncio.run(_complete_and_capture(reg))
     assert pushed["access_status"] == "whitelist"
-    assert "白名单" in pushed["access_summary"] and "李经理" in pushed["access_summary"]
+    assert "常客" in pushed["access_summary"] and "李经理" in pushed["access_summary"]
 
 
 def test_returning_summary_in_payload():

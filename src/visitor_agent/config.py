@@ -86,19 +86,22 @@ class Settings(BaseSettings):
     roster_path: str = ""
     roster_threshold: float = 0.55
 
-    # ---- Access control: blacklist / whitelist (车牌/手机 黑白名单) ----
-    # 留空=关闭。指向 JSON 文件即开启（见 access.example.json）。
-    # 黑名单=告警+绝不自动放行；白名单=快速通道（默认仍需保安确认）。
+    # ---- 「常客名单」 / 黑名单 (access list；按车牌/手机精确匹配) ----
+    # 这是访客侧的「常客名单」——和下面电话侧的「门卫查询名单 GUARD_PHONES」是
+    # 两套完全不同的东西，别混（前者识别老客户/VIP，后者识别门卫本人来查数据）。
+    # 留空=关闭。指向 JSON 文件即开启（见 access.demo.json）。文件里：
+    #   whitelist = 常客（已知客户/VIP，快速通道）；blacklist = 黑名单（告警，绝不自动放行）。
     access_list_path: str = ""
-    # 白名单是否自动放行（跳过保安、直接抬杆）。默认 False=仍由保安点放行，只是卡片标注。
+    # 常客是否自动放行（跳过保安、直接抬杆）。默认 False=仍由保安点放行，只是卡片标注「常客」。
     auto_pass_whitelist: bool = False
 
     # ---- Guard-only access (数据查询/后台仅门卫可用，访客不能查) ----
     # 网页端：设了 GUARD_ACCESS_KEY 后，/dashboard /ask /admin 及数据 API 需先在 /login
     #   输入这个口令（留空=不设防，demo 方便）。
     guard_access_key: str = ""
-    # 电话端：门卫手机号（逗号分隔 1~2 个）。来电号码在此名单=门卫，转「语音数据助手」问数据；
-    #   否则=访客，走登记。留空=所有来电都按访客登记。
+    # 电话端「门卫查询名单」：门卫自己的手机号（逗号分隔 1~2 个）。来电号码在此名单
+    #   = 门卫本人 → 转「语音数据助手」问数据；否则=访客，走登记。留空=所有来电按访客。
+    #   注意：这是门卫的查询入口名单，跟上面访客侧的「常客名单」(access list) 完全不同，别混。
     guard_phones: str = ""
     # 转人工外呼：系统拨这个门卫号码、把他接进当前通话（电话原生介入，AI 让位）。
     guard_dial_number: str = ""            # 门卫手机号 E.164

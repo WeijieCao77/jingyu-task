@@ -102,13 +102,16 @@ def build_realtime(cfg: Settings):
         )
     except Exception:  # noqa: BLE001 — type path varies by SDK; transcript is best-effort
         pass
-    # Phone lines carry echo/background noise that the DEFAULT server-VAD often
-    # mistakes for the caller speaking → it interrupts the agent mid-word, so
-    # syllables get "swallowed" on the call. Make turn-taking less trigger-happy:
-    # higher VAD threshold + longer onset/silence, plus far-field noise reduction.
-    # Env-tunable (no config.py change needed): REALTIME_VAD_THRESHOLD / REALTIME_SILENCE_MS.
+    # Phone lines: the AI's own audio echoes back through the handset, and ambient
+    # noise both look like "the caller talking" to the server-VAD, which then
+    # interrupts the AI mid-word — sounds like swallowed syllables (吞字), and it
+    # happens EVEN in a quiet room because the echo IS the AI's own voice. So by
+    # default we do NOT let the model interrupt its own reply, and we make the VAD
+    # less twitchy (higher threshold + longer silence). All env-tunable; set
+    # REALTIME_ALLOW_INTERRUPT=1 to restore barge-in.
     import os  # local import → avoids touching module top (smaller merge surface)
 
+    _allow_interrupt = os.getenv("REALTIME_ALLOW_INTERRUPT", "0").lower() in ("1", "true", "yes")
     try:
         from openai.types.beta.realtime.session import TurnDetection
 
@@ -118,16 +121,21 @@ def build_realtime(cfg: Settings):
             prefix_padding_ms=300,
             silence_duration_ms=int(os.getenv("REALTIME_SILENCE_MS", "600")),
             create_response=True,
-            interrupt_response=True,  # keep barge-in, just less twitchy
+            interrupt_response=_allow_interrupt,
         )
     except Exception:  # noqa: BLE001 — SDK field variance; defaults still work
         pass
-    try:
-        from openai.types.beta.realtime.session import InputAudioNoiseReduction
+    # Noise reduction must match the mic: near_field = phone handset / headset
+    # (the call case here); far_field = laptop / conference-room mic. The wrong
+    # mode distorts speech. REALTIME_NOISE_REDUCTION=off disables it entirely.
+    _nr = os.getenv("REALTIME_NOISE_REDUCTION", "near_field").lower()
+    if _nr in ("near_field", "far_field"):
+        try:
+            from openai.types.beta.realtime.session import InputAudioNoiseReduction
 
-        kwargs["input_audio_noise_reduction"] = InputAudioNoiseReduction(type="far_field")
-    except Exception:  # noqa: BLE001
-        pass
+            kwargs["input_audio_noise_reduction"] = InputAudioNoiseReduction(type=_nr)
+        except Exception:  # noqa: BLE001
+            pass
     return openai.realtime.RealtimeModel(**kwargs)
 
 

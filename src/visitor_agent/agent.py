@@ -311,7 +311,17 @@ async def entrypoint(ctx: JobContext) -> None:
         # slot-filling logic lives in session_logic and is voice-mode-independent,
         # so it keeps working unchanged here.
         logger.info("voice_mode=realtime (speech-to-speech)")
-        session = AgentSession(llm=build_realtime(cfg))
+        # Disable interruption at the session layer too (the realtime model has
+        # its own no-self-interrupt default): phone echo / ambient noise must not
+        # cut the AI off mid-sentence (吞字). REALTIME_ALLOW_INTERRUPT=1 restores
+        # barge-in on both layers.
+        import os as _os
+
+        _allow_interrupt = _os.getenv("REALTIME_ALLOW_INTERRUPT", "0").lower() in ("1", "true", "yes")
+        session = AgentSession(
+            llm=build_realtime(cfg),
+            allow_interruptions=_allow_interrupt,
+        )
     else:
         # Pipeline STT→LLM→TTS. Turn detection improves barge-in naturalness but
         # needs a model file. If it isn't available, fall back to VAD-only

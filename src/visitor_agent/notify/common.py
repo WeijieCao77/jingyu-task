@@ -31,7 +31,7 @@ def status_lines(visit: dict) -> list[str]:
     elif visit.get("access_status") == "blacklist":
         lines.append("⛔ 黑名单")
     elif visit.get("access_status") == "whitelist":
-        lines.append("✅ 白名单")
+        lines.append("✅ 常客")
     if visit.get("returning_summary"):
         lines.append("🔁 " + visit["returning_summary"])
     elif is_returning(visit):
@@ -45,5 +45,5 @@ def title(visit: dict) -> str:
     if visit.get("access_status") == "blacklist":
         return "⛔ 黑名单访客 · " + base
     if visit.get("access_status") == "whitelist":
-        return "✅ 白名单访客 · " + base
+        return "✅ 常客 · " + base
     return base + ("（回访车辆）" if is_returning(visit) else "")

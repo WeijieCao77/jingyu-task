@@ -123,9 +123,9 @@ def test_blacklist_flag_on_cards():
 
 
 def test_whitelist_flag_on_cards():
-    v = dict(_visit(), access_status="whitelist", access_summary="✅ 白名单 · 王总 · VIP · 按车牌匹配")
-    assert "白名单" in telegram.build_payload(v, "https://x/c?token=t", "1")["text"]
-    assert "白名单" in discord.build_payload(v, "https://x/c?token=t")["embeds"][0]["title"]
+    v = dict(_visit(), access_status="whitelist", access_summary="✅ 常客 · 王总 · VIP · 按车牌匹配")
+    assert "常客" in telegram.build_payload(v, "https://x/c?token=t", "1")["text"]
+    assert "常客" in discord.build_payload(v, "https://x/c?token=t")["embeds"][0]["title"]
 
 
 # ----- Telegram localhost button degradation (①) -----
