@@ -311,16 +311,17 @@ async def entrypoint(ctx: JobContext) -> None:
         # slot-filling logic lives in session_logic and is voice-mode-independent,
         # so it keeps working unchanged here.
         logger.info("voice_mode=realtime (speech-to-speech)")
-        # Disable interruption at the session layer too (the realtime model has
-        # its own no-self-interrupt default): phone echo / ambient noise must not
-        # cut the AI off mid-sentence (吞字). REALTIME_ALLOW_INTERRUPT=1 restores
-        # barge-in on both layers.
-        import os as _os
-
-        _allow_interrupt = _os.getenv("REALTIME_ALLOW_INTERRUPT", "0").lower() in ("1", "true", "yes")
+        # IMPORTANT: when the realtime model uses server-side turn detection,
+        # livekit-agents REQUIRES allow_interruptions=True on the session — passing
+        # False raises ValueError and crashes EVERY call at session.start() (true on
+        # both 1.5.x and 1.6.x). Anti-吞字 (phone echo / ambient noise must not cut
+        # the AI off mid-sentence) is therefore done at the MODEL layer instead, via
+        # TurnDetection(interrupt_response=False) in build_realtime — that stops the
+        # server from interrupting the AI's own reply, which is exactly what we want.
+        # REALTIME_ALLOW_INTERRUPT=1 flips interrupt_response back on (barge-in).
         session = AgentSession(
             llm=build_realtime(cfg),
-            allow_interruptions=_allow_interrupt,
+            allow_interruptions=True,
         )
     else:
         # Pipeline STT→LLM→TTS. Turn detection improves barge-in naturalness but
