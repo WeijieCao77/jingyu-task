@@ -14,6 +14,11 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
+# Normalize line endings: if the build context came from a Windows checkout,
+# scripts/start.sh may have CRLF, which makes the container's bash choke on the
+# trailing \r ("set: pipefail: invalid option name" → crash loop). Strip CR.
+RUN sed -i 's/\r$//' scripts/start.sh
+
 # Pre-download VAD / turn-detector models at build (best effort; degrades to VAD).
 RUN python -m visitor_agent.agent download-files || true
 
