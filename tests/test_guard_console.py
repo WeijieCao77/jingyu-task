@@ -110,9 +110,9 @@ def test_ask_page_and_query_endpoint(temp_db, monkeypatch):
     importlib.reload(srv)
     client = TestClient(srv.app)
 
-    # data center page renders both modes
+    # consolidated console renders the data + chat tabs (data center merged in)
     page = client.get("/ask")
-    assert page.status_code == 200 and "门卫数据中心" in page.text and "筛选查询" in page.text
+    assert page.status_code == 200 and "门卫控制台" in page.text and "对话查询" in page.text
 
     # endpoint forwards the question + prior turns (history) to the agent
     seen = {}

@@ -223,7 +223,7 @@ def api_query(range: str = "all", company: str = "", status: str = "",
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin() -> HTMLResponse:
-    return HTMLResponse(_ADMIN_HTML)
+    return HTMLResponse(_CONSOLE_HTML)
 
 
 @app.post("/api/confirm/{visit_id}")
@@ -283,7 +283,7 @@ async def events_stream() -> StreamingResponse:
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard() -> HTMLResponse:
-    return HTMLResponse(_DASHBOARD_HTML)
+    return HTMLResponse(_CONSOLE_HTML)
 
 
 # ----- browser voice client (talk to the agent with a mic, no phone) -----
@@ -340,7 +340,7 @@ box-shadow:0 10px 40px rgba(0,0,0,.08)}}h1{{font-size:20px}}p{{color:#777}}a{{co
 
 @app.get("/", response_class=HTMLResponse)
 def root() -> HTMLResponse:
-    return HTMLResponse(_DASHBOARD_HTML)
+    return HTMLResponse(_CONSOLE_HTML)
 
 
 # ----- bonus: guard query agent over the API -----
@@ -364,7 +364,7 @@ def guard_query(q: GuardQuery) -> JSONResponse:
 @app.get("/ask", response_class=HTMLResponse)
 def ask() -> HTMLResponse:
     """Guard data-query page: 保安自然语言问数据（本月多少车放行、找哪家多少人、高峰时段…）。"""
-    return HTMLResponse(_ASK_HTML)
+    return HTMLResponse(_CONSOLE_HTML)
 
 
 _DASHBOARD_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
@@ -776,6 +776,207 @@ async function runQuery(){
         '</td><td>'+(v.phone||'—')+'</td><td style="color:#8a94a6">'+(v.entry_time||'—')+'</td><td>'+st+'</td></tr>';}).join('');
   }catch(e){document.getElementById('rows').innerHTML='<tr><td colspan=6 style="color:#c62828">查询出错：'+e.message+'</td></tr>';}
 }
+</script></body></html>"""
+
+
+# Consolidated guard console: 数据库(控制台+筛选合并) · 对话查询 · 常客名单 in one
+# tabbed page. Served at /dashboard /ask /admin / — the page picks the opening tab
+# from the path (/ask→对话, /admin→常客) or ?tab=. Backend APIs are unchanged.
+_CONSOLE_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>门卫控制台</title>
+<style>
+ :root{--bg:#eef1f6;--card:#fff;--ink:#1f2733;--muted:#8a94a6;--accent:#1ea672;--line:#e9edf3;
+   --amber:#c77b1a;--amberbg:#fdf3e3;--green:#1ea672;--greenbg:#e7f6ef;--red:#c62828;--redbg:#fdecec}
+ *{box-sizing:border-box} html,body{height:100%}
+ body{margin:0;font-family:-apple-system,'Segoe UI',Roboto,'PingFang SC',sans-serif;background:var(--bg);
+   color:var(--ink);display:flex;flex-direction:column;min-height:100vh}
+ header{padding:12px 22px;display:flex;align-items:center;gap:14px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+ header h1{font-size:17px;margin:0;display:flex;align-items:center;gap:8px}
+ .live{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(30,166,114,.5);animation:p 2s infinite}
+ @keyframes p{to{box-shadow:0 0 0 8px rgba(30,166,114,0)}}
+ .tabs{display:flex;gap:6px;background:#f3f6fb;border-radius:999px;padding:4px}
+ .tab{border:0;background:transparent;color:#566;font-size:14px;padding:7px 16px;border-radius:999px;cursor:pointer}
+ .tab.on{background:var(--accent);color:#fff;font-weight:600}
+ .logout{margin-left:auto;color:#566;text-decoration:none;font-size:13px;background:#f3f6fb;border:1px solid #e7ecf4;padding:7px 12px;border-radius:999px}
+ #alerts{padding:0 22px;margin-top:12px;display:flex;flex-direction:column;gap:8px}
+ .alert{background:var(--amberbg);border:1px solid #f0d8a8;color:#8a5a12;border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px;animation:f .3s ease}
+ @keyframes f{from{opacity:0;transform:translateY(-4px)}}
+ .alert .join{margin-left:auto;background:var(--amber);color:#fff;border:0;border-radius:999px;padding:8px 16px;font-size:14px;cursor:pointer;text-decoration:none}
+ .wrap{flex:1;min-height:0;padding:18px 22px;width:100%;max-width:1080px;margin:0 auto}
+ .panel{display:none} .panel.on{display:block}
+ .card{background:var(--card);border-radius:16px;box-shadow:0 6px 24px rgba(20,30,50,.06);overflow:hidden}
+ .filters{background:#fff;border-radius:14px;box-shadow:0 6px 24px rgba(20,30,50,.06);padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+ .seg{display:flex;gap:4px;background:#f3f6fb;border-radius:10px;padding:4px}
+ .seg button{border:0;background:transparent;padding:7px 13px;border-radius:8px;font-size:14px;cursor:pointer;color:#566}
+ .seg button.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+ input,select{font-size:14px;padding:10px 12px;border:1px solid #dde3ec;border-radius:10px;outline:none;background:#fff}
+ input:focus,select:focus{border-color:var(--accent)}
+ .btn{border:0;border-radius:10px;background:var(--accent);color:#fff;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer}
+ .btn.grey{background:#f3f6fb;color:#566}
+ .stat{display:flex;gap:14px;margin-bottom:14px}
+ .scard{background:#fff;border-radius:14px;box-shadow:0 6px 24px rgba(20,30,50,.06);padding:14px 20px;flex:1}
+ .scard .n{font-size:26px;font-weight:800;color:var(--accent)} .scard .l{color:var(--muted);font-size:13px}
+ .hours{background:#fff;border-radius:14px;box-shadow:0 6px 24px rgba(20,30,50,.06);padding:14px 18px;margin-bottom:14px}
+ .hours .bars{display:flex;align-items:flex-end;gap:3px;height:64px;margin-top:8px}
+ .hours .bar2{flex:1;background:#cfeede;border-radius:3px 3px 0 0;min-height:2px} .hours .bar2.hot{background:var(--accent)}
+ table{width:100%;border-collapse:collapse;font-size:14px}
+ th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:11px 14px;background:#fafbfd}
+ td{padding:12px 14px;border-top:1px solid #eef1f6;vertical-align:middle}
+ tr.new td{animation:hl 2s ease} @keyframes hl{from{background:#fff7e9}}
+ .plate{font-weight:700;font-variant-numeric:tabular-nums}
+ .pill{font-size:12px;padding:4px 10px;border-radius:999px;font-weight:600}
+ .pill.ok{background:var(--greenbg);color:var(--green)} .pill.wait{background:var(--amberbg);color:var(--amber)}
+ .pill.bad{background:var(--redbg);color:var(--red)} .pill.vip{background:var(--greenbg);color:var(--green)}
+ .go{border:0;border-radius:10px;background:var(--green);color:#fff;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 3px 10px rgba(30,166,114,.3)}
+ .go:active{transform:translateY(1px)}
+ .empty{padding:30px;text-align:center;color:var(--muted)}
+ .chip{background:#f6f3ec;border-radius:999px;padding:2px 8px;margin:1px;display:inline-block;font-size:12px}
+ .num{font-weight:700;color:var(--accent)}
+ .chat{height:58vh;overflow:auto;padding:8px}
+ .msg{display:flex;margin:10px 0} .msg.me{justify-content:flex-end}
+ .bub{max-width:80%;padding:11px 15px;border-radius:16px;font-size:15px;line-height:1.65;white-space:pre-wrap}
+ .me .bub{background:var(--accent);color:#fff;border-bottom-right-radius:5px}
+ .ai .bub{background:#fff;box-shadow:0 4px 16px rgba(20,30,50,.06);border-bottom-left-radius:5px}
+ .hint{color:var(--muted);font-size:13px;text-align:center;margin:18px 0 8px}
+ .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:0 auto}
+ .qchip{background:#fff;border:1px solid #e7ecf4;color:#48566b;border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer}
+ .qchip:hover{background:#eef3fb}
+ .qbar{margin-top:10px;display:flex;gap:10px} .qbar input{flex:1}
+ .spin{display:inline-block;width:15px;height:15px;border:2px solid #cfe;border-top-color:var(--accent);border-radius:50%;animation:s .8s linear infinite;vertical-align:-2px} @keyframes s{to{transform:rotate(360deg)}}
+</style></head><body>
+<header>
+  <h1><span class="live"></span>🐳 门卫控制台</h1>
+  <div class="tabs">
+    <button class="tab on" data-t="db">📂 数据库</button>
+    <button class="tab" data-t="chat">💬 对话查询</button>
+    <button class="tab" data-t="vip">🏆 常客名单</button>
+  </div>
+  <a class="logout" href="/login">🔒 登录/切换</a>
+</header>
+<div id="alerts"></div>
+<div class="wrap">
+  <div class="panel on" id="p-db">
+    <div class="filters">
+      <div class="seg" id="seg-range">
+        <button data-r="today">今天</button><button data-r="week">本周</button>
+        <button data-r="month">本月</button><button data-r="all" class="on">全部</button></div>
+      <input id="f-company" placeholder="来访单位（可空）" style="width:150px">
+      <input id="f-plate" placeholder="车牌（可空）" style="width:120px">
+      <select id="f-status"><option value="">全部状态</option><option value="confirmed">已放行</option><option value="pending">待核对</option></select>
+      <button class="btn" id="run">查询</button>
+    </div>
+    <div class="stat">
+      <div class="scard"><div class="n" id="s-count">—</div><div class="l">符合条件车辆</div></div>
+      <div class="scard"><div class="n" id="s-released">—</div><div class="l">其中已放行</div></div>
+    </div>
+    <div class="hours"><div class="l" style="color:#8a94a6;font-size:13px">访问时段分布（0–23 时）</div><div class="bars" id="bars"></div></div>
+    <div class="card">
+      <table><thead><tr><th>车牌</th><th>来访单位</th><th>事由</th><th>手机</th><th>姓名</th><th>登记时间</th><th>状态</th><th></th></tr></thead>
+      <tbody id="rows"></tbody></table>
+      <div class="empty" id="db-empty" style="display:none">没有符合条件的记录</div>
+    </div>
+  </div>
+  <div class="panel" id="p-chat">
+    <div class="card" style="padding:16px">
+      <div class="chat" id="chat"><div id="welcome"><div class="hint">和 AI 对话查访客数据，支持追问（如"那上个月呢？"）</div><div class="chips" id="chips"></div></div></div>
+      <div class="qbar"><input id="q" placeholder="例如：这个月有多少辆车被放行？"><button class="btn" id="go">发送</button><button class="btn grey" id="newc">＋新对话</button></div>
+    </div>
+  </div>
+  <div class="panel" id="p-vip">
+    <div class="card" style="padding:6px 0;overflow:auto">
+      <table><thead><tr><th>称呼</th><th>手机号</th><th>车牌</th><th>来访次数</th><th>已放行</th><th>常去单位</th><th>最近一次</th></tr></thead>
+      <tbody id="vip-rows"></tbody></table>
+    </div>
+  </div>
+</div>
+<script>
+const TABS={db:'p-db',chat:'p-chat',vip:'p-vip'};
+function showTab(t){if(!TABS[t])t='db';
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.t===t));
+  Object.keys(TABS).forEach(k=>document.getElementById(TABS[k]).classList.toggle('on',k===t));
+  if(t==='db')runQuery(); if(t==='vip')loadVip();}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
+// alerts (incoming call / transfer-to-human) via SSE — always live
+const alerts={};
+function renderAlert(e){
+  if(e.kind==='human_joined'){const el=alerts[e.call_id]; if(el){el.remove();delete alerts[e.call_id];} return;}
+  if(e.kind!=='call_started'&&e.kind!=='escalation')return;
+  let el=alerts[e.call_id];
+  if(!el){el=document.createElement('div');el.className='alert';alerts[e.call_id]=el;document.getElementById('alerts').appendChild(el);}
+  const esc=e.kind==='escalation';
+  el.style.background=esc?'#fdecec':'';el.style.borderColor=esc?'#f3c0c0':'';
+  const dial=esc?'<button class="join" style="border:0;cursor:pointer;margin-left:6px" onclick="dialGuard(\\''+e.call_id+'\\')">📞 打到我手机</button>':'';
+  el.innerHTML=(esc?'⚠️ <b>访客请求转人工</b>　':'📞 <b>有访客来电</b>　')+'<span style="color:#8a94a6">'+(e.text||'')+'</span>'+
+    '<a class="join" href="/guard_call?room='+encodeURIComponent(e.call_id)+'" target="_blank">'+(esc?'浏览器介入':'介入通话')+'</a>'+dial;
+}
+async function dialGuard(room){try{const r=await fetch('/api/dial_guard?room='+encodeURIComponent(room),{method:'POST'});
+  const d=await r.json(); alert(d.ok?'正在拨打门卫手机，请接听…':'拨打失败：'+(d.error||'未配置外呼'));}catch(_){alert('拨打失败');}}
+try{const es=new EventSource('/events/stream'); es.onmessage=m=>{try{renderAlert(JSON.parse(m.data))}catch(_){}};}catch(_){}
+// 数据库 = 筛选 + 放行
+let curRange='all', seen=new Set();
+document.querySelectorAll('#seg-range button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#seg-range button').forEach(x=>x.classList.toggle('on',x===b));curRange=b.dataset.r;runQuery();});
+document.getElementById('run').onclick=runQuery;
+['f-company','f-plate'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')runQuery();}));
+document.getElementById('f-status').onchange=runQuery;
+async function confirmVisit(id){try{await fetch('/api/confirm/'+id,{method:'POST'});runQuery();}catch(_){}}
+async function runQuery(){
+  const p=new URLSearchParams({range:curRange,company:document.getElementById('f-company').value.trim(),
+    plate:document.getElementById('f-plate').value.trim(),status:document.getElementById('f-status').value,limit:'100'});
+  try{const r=await fetch('/api/query?'+p.toString());
+    if(r.status===401){location.href='/login?next=/dashboard';return;}
+    const d=await r.json();
+    document.getElementById('s-count').textContent=d.count;
+    document.getElementById('s-released').textContent=d.released;
+    const by=d.by_hour||{}; let max=1; for(let h=0;h<24;h++)max=Math.max(max,by[h]||0);
+    let bars=''; for(let h=0;h<24;h++){const v=by[h]||0;const hot=v===max&&v>0;
+      bars+='<div class="bar2'+(hot?' hot':'')+'" style="height:'+Math.round((v/max)*100)+'%" title="'+h+'时: '+v+'"></div>';}
+    document.getElementById('bars').innerHTML=bars;
+    const tb=document.getElementById('rows'); const vs=d.visits||[];
+    document.getElementById('db-empty').style.display=vs.length?'none':'block';
+    tb.innerHTML=vs.map(v=>{
+      const act=v.status==='confirmed'?'<span class="pill ok">已放行 '+(v.confirmed_at?v.confirmed_at.slice(11,16):'')+'</span>':'<span class="pill wait">待核对</span>';
+      const btn=v.access_status==='blacklist'?'<span class="pill bad">⛔ 禁止放行</span>':(v.status==='confirmed'?'':'<button class="go" onclick="confirmVisit('+v.id+')">放行</button>');
+      const flag=v.access_status==='blacklist'?'<span class="pill bad">⛔黑名单</span> ':v.access_status==='whitelist'?'<span class="pill vip">✅常客</span> ':'';
+      const cls=seen.has(v.id)?'':'new'; seen.add(v.id);
+      return '<tr class="'+cls+'"><td class="plate">'+flag+(v.plate||'—')+'</td><td>'+(v.company||'—')+'</td><td>'+(v.reason||'—')+
+        '</td><td>'+(v.phone||'—')+'</td><td>'+(v.name||'—')+'</td><td style="color:#8a94a6">'+(v.entry_time||'—')+'</td><td>'+act+'</td><td>'+btn+'</td></tr>';
+    }).join('');
+  }catch(e){document.getElementById('rows').innerHTML='<tr><td colspan=8 style="color:#c62828">查询出错：'+e.message+'</td></tr>';}
+}
+setInterval(()=>{if(document.getElementById('p-db').classList.contains('on'))runQuery();},3000);
+// 对话查询
+const EX=["这个月有多少辆车被放行？","本周一共多少访问车辆？","这个月找蓝色鲸鱼的有多少人？","什么时间段访问最多？","张师傅这个月来了几次？","常客前五是谁？"];
+const chat=document.getElementById('chat'),q=document.getElementById('q'),go=document.getElementById('go'),
+      chips=document.getElementById('chips'),welcome=document.getElementById('welcome');
+let history=[];
+chips.innerHTML=EX.map(t=>'<span class="qchip">'+t+'</span>').join('');
+chips.querySelectorAll('.qchip').forEach(c=>c.onclick=()=>{q.value=c.textContent;send();});
+document.getElementById('newc').onclick=()=>{history=[];chat.querySelectorAll('.msg').forEach(m=>m.remove());welcome.style.display='';};
+function bubble(role,text){const m=document.createElement('div');m.className='msg '+(role==='user'?'me':'ai');
+  const b=document.createElement('div');b.className='bub';b.textContent=text;m.appendChild(b);chat.appendChild(m);chat.scrollTop=chat.scrollHeight;return b;}
+async function send(){const question=q.value.trim(); if(!question||go.disabled)return;
+  welcome.style.display='none'; q.value=''; bubble('user',question);
+  const b=bubble('ai',''); b.innerHTML='<span class="spin"></span> 正在查…'; go.disabled=true;
+  try{const r=await fetch('/guard/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question,history})});
+    const d=await r.json(); const a=d.answer||d.error||'(无结果)';
+    b.textContent=a; history.push({role:'user',content:question}); history.push({role:'assistant',content:a});
+  }catch(e){b.textContent='出错了：'+e.message;} go.disabled=false; q.focus();}
+go.onclick=send; q.addEventListener('keydown',e=>{if(e.key==='Enter')send();});
+// 常客名单
+async function loadVip(){try{const r=await fetch('/api/profiles');
+  if(r.status===401){location.href='/login?next=/dashboard';return;}
+  const d=await r.json();
+  document.getElementById('vip-rows').innerHTML=d.map(p=>'<tr><td>'+(p.name||'—')+'</td><td>'+(p.phone||'—')+'</td><td>'+
+   (p.plates&&p.plates.length?p.plates.map(x=>'<span class=chip>'+x+'</span>').join(''):'—')+'</td><td class=num>'+p.visit_count+
+   '</td><td>'+p.confirmed_count+'</td><td>'+(p.companies&&p.companies.length?p.companies.map(x=>'<span class=chip>'+x+'</span>').join(''):'—')+
+   '</td><td>'+(p.last_company||'—')+'／'+(p.last_reason||'—')+'　'+(p.last_time||'')+'</td></tr>').join('')
+   ||'<tr><td colspan=7 style="color:#999">暂无数据，先登记几位访客</td></tr>';}catch(_){}}
+// initial tab from path (/ask→对话, /admin→常客) or ?tab=
+const _qt=new URLSearchParams(location.search).get('tab');
+const _pt=location.pathname==='/ask'?'chat':location.pathname==='/admin'?'vip':'db';
+showTab(_qt||_pt);
 </script></body></html>"""
 
 
