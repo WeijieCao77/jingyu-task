@@ -51,11 +51,16 @@ class Settings(BaseSettings):
     # ---- Guard notification channel ----
     # "none" = 保安直接在 Dashboard 上点确认（零账号，默认）。
     # 也可 discord / telegram（美国可用，需各自账号）；wecom 为生产渠道。
-    notify_channel: str = "none"             # none | discord | telegram | wecom
+    notify_channel: str = "none"             # none | discord | telegram | wecom | wecom_app
     discord_webhook_url: str = ""
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
-    wecom_webhook_url: str = ""
+    wecom_webhook_url: str = ""              # 企业微信「群机器人」webhook（需先有普通群）
+    # 企业微信「自建应用」API（NOTIFY_CHANNEL=wecom_app）：不用建群，直接发给成员、收在
+    # 企业微信 App。三值从 work.weixin.qq.com 管理后台取（我的企业 / 应用管理→自建应用）。
+    wecom_corp_id: str = ""                  # 企业ID corpid
+    wecom_agent_id: str = ""                 # 自建应用 AgentId
+    wecom_app_secret: str = ""              # 自建应用 Secret
 
     # ---- Confirm web server ----
     public_base_url: str = "http://localhost:8080"
