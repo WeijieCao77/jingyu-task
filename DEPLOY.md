@@ -29,7 +29,7 @@
 
 ## 二、部署步骤（Railway，最省事，GitHub 连接即部署）
 
-1. Railway → New Project → **Deploy from GitHub repo** → 选 `WeijieCao77/jingyu-task`，分支 `claude/voice-agent-takehome-qzjbd2`。
+1. Railway → New Project → **Deploy from GitHub repo** → 选 `WeijieCao77/jingyu-task`，分支 `main`。
 2. Railway 检测到 `Dockerfile` 会自动构建（容器内同时跑 web + agent，见 `scripts/start.sh`）。
 3. 在该服务的 **Variables** 里加环境变量：
    ```

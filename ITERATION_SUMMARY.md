@@ -85,7 +85,7 @@ v0.15 全云端部署 → v0.16 产品打磨(确认层/提速/简化/美化) →
 ## 四、分支 / PR 状态
 | 分支 | 状态 | 内容 |
 |---|---|---|
-| `claude/voice-agent-takehome-qzjbd2`(dev) | 主线 (PR #1) | 全部已合并能力 + Telegram + 模型可换 + **realtime + 黑白名单 + 通知增强 + FR-2** |
+| `main`（默认主线；原 dev `claude/voice-agent-takehome-qzjbd2`，PR #1） | **主线** | 全部已合并能力 + Telegram + 模型可换 + **realtime + 黑白名单 + 通知增强 + FR-2** |
 | `feature/wechat-push` (PR #2) | **已合并** | Telegram/企微多渠道 |
 | `feature/data-matching` (PR #3) | **已合并** | 公司名单匹配（默认关） |
 | `feature/realtime-voice` | **已并入 dev(v0.22)** | `VOICE_MODE` 增量手动并入主线，roster/base_url 未回退；分支本身可弃 |

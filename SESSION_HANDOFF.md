@@ -43,7 +43,7 @@ tests/  76 个离线单测（沙箱缺 livekit 时 1 个 /token 用例跳过） 
 ## 5. 分支 / PR
 | 分支 | 状态 | 内容 |
 |---|---|---|
-| `claude/voice-agent-takehome-qzjbd2`(dev) | **主线** (PR #1) | 全部 + **v0.22**：realtime 可选模式、黑白名单、通知增强(老访客/名单)、FR-2 放行播报、Telegram/`/voice`/测试 修复 |
+| `main`（默认主线；原 dev 分支 `claude/voice-agent-takehome-qzjbd2`，PR #1） | **主线** | 全部 + **v0.22**：realtime 可选模式、黑白名单、通知增强(老访客/名单)、FR-2 放行播报、Telegram/`/voice`/测试 修复 |
 | `feature/wechat-push` (PR #2) | 已合并 | — |
 | `feature/data-matching` (PR #3) | 已合并 | — |
 | `feature/realtime-voice` | **已并入 dev(v0.22)** | `VOICE_MODE` 增量手动并入主线（未回退 roster/base_url）；分支本身可弃 |
@@ -62,12 +62,12 @@ tests/  76 个离线单测（沙箱缺 livekit 时 1 个 /token 用例跳过） 
 
 ## 8. 新 session 怎么起步
 1. 读本文 + `ITERATION_SUMMARY.md`（全局）+ `DOCS.md`（文档索引）。
-2. 在 `claude/voice-agent-takehome-qzjbd2` 分支上工作；改完 push。
+2. 在 `main` 分支上工作；改完 push（Railway 自动部署源已是 main）。
 3. 给用户的任何操作都配 prompt；改动同步进 CHANGELOG/PROGRESS。
 4. 本地跑通参考 `ACCEPTANCE_PROMPT.md` / `SMOKE_CHECK.md`（Windows §C5）/ `NOTIFY_SETUP.md`。
 
 ## 9. 给用户的 v0.22 真机验证 prompt（复制给本地 Claude Code）
-> 先 `git pull origin claude/voice-agent-takehome-qzjbd2` 同步到 v0.22。x64 venv 跑：`pip install -r requirements.txt`。
+> 先 `git pull origin main` 同步到最新。x64 venv 跑：`pip install -r requirements.txt`。
 
 **A. realtime + 公司名单 + 黑白名单 同时开（FR-1 + NEW-2）**
 ```

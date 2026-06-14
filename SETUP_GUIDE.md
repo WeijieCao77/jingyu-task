@@ -86,11 +86,11 @@
 
 ### 📋 Prompt 2.0 —— 一键全面自测（不用电话，覆盖 A–H，最后给 ✅/❌ 清单）
 ```
-这是园区语音访客登记项目（分支 claude/voice-agent-takehome-qzjbd2），帮我做一轮全面本地自测，
+这是园区语音访客登记项目（分支 main），帮我做一轮全面本地自测，
 最后给我一个逐项 ✅/❌ 清单 + 关键截图/数字。报错先自查修复再继续。
 
 【准备】
-1. git pull origin claude/voice-agent-takehome-qzjbd2；x64 venv：pip install -r requirements.txt
+1. git pull origin main；x64 venv：pip install -r requirements.txt
    （Windows/ARM64 按 SMOKE_CHECK.md §C5）。
 2. 写 .env：问我要 OPENAI_API_KEY；VOICE_MODE=realtime（若该 key 无 gpt-realtime 权限就用 pipeline 并告诉我）；
    NOTIFY_CHANNEL=telegram + 我的 TELEGRAM_BOT_TOKEN/CHAT_ID（帮我取 chat id）；
@@ -144,8 +144,8 @@ H. 门卫鉴权：访客 /voice 仍能开；但 /dashboard /ask /admin 跳 /logi
 
 ### 📋 Prompt 2.1 —— 同步代码 + 起服务 + 浏览器先跑通（不用电话）
 ```
-这是园区语音访客登记项目，分支 claude/voice-agent-takehome-qzjbd2。请：
-1. git pull origin claude/voice-agent-takehome-qzjbd2 同步到最新(v0.23)。
+这是园区语音访客登记项目，分支 main。请：
+1. git pull origin main 同步到最新(v0.23)。
 2. 在 x64 venv 装依赖：pip install -r requirements.txt；按 SMOKE_CHECK.md §C5 处理 Windows/ARM64。
 3. 问我要 OPENAI_API_KEY，写进 .env；设 VOICE_MODE=realtime（若该 key 没有 gpt-realtime 权限就回退 pipeline 并告诉我）。
 4. 起本地 LiveKit（livekit-server.exe --dev）、web server、agent worker(dev) 三个进程。
