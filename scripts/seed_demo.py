@@ -83,7 +83,10 @@ def build_rows():
 
 
 def main():
-    eng = repo.init_db()
+    # Default: use DATABASE_URL from config (inside the container this is the
+    # Postgres reference). Override with SEED_DATABASE_URL to seed a remote DB
+    # over its public proxy URL from elsewhere.
+    eng = repo.init_db(os.environ.get("SEED_DATABASE_URL") or None)
     rows = build_rows()
     with Session(eng) as s:
         before = s.query(Visit).count()
