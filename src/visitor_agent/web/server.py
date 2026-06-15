@@ -1005,7 +1005,18 @@ function renderAlert(e){
 }
 async function dialGuard(room){try{const r=await fetch('/api/dial_guard?room='+encodeURIComponent(room),{method:'POST'});
   const d=await r.json(); alert(d.ok?'正在拨打门卫手机，请接听…':'拨打失败：'+(d.error||'未配置外呼'));}catch(_){alert('拨打失败');}}
-try{const es=new EventSource('/events/stream'); es.onmessage=m=>{try{renderAlert(JSON.parse(m.data))}catch(_){}};}catch(_){}
+// SSE can silently stall (connection alive but no data) → an alert could linger
+// after the call ends. So we reconnect every 30s and rebuild the alert set from
+// the replayed events: ended calls (call_started+call_ended in the window) clear,
+// active ones re-appear. Belt to the live call_ended + the per-alert timeout.
+let _es=null;
+function reconnectSSE(){
+  try{if(_es)_es.close();}catch(_){}
+  Object.keys(alerts).forEach(k=>{try{clearTimeout(alerts[k]._t)}catch(_){};try{alerts[k].remove()}catch(_){};delete alerts[k];});
+  try{_es=new EventSource('/events/stream');_es.onmessage=m=>{try{renderAlert(JSON.parse(m.data))}catch(_){}};}catch(_){}
+}
+reconnectSSE();
+setInterval(reconnectSSE,30000);
 // 数据库 = 筛选 + 放行
 let curRange='all', seen=new Set();
 document.querySelectorAll('#seg-range button').forEach(b=>b.onclick=()=>{
