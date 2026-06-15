@@ -999,10 +999,15 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showTab(b.dataset.t))
 // alerts (incoming call / transfer-to-human) via SSE — always live
 const alerts={};
 function renderAlert(e){
-  if(e.kind==='human_joined'){const el=alerts[e.call_id]; if(el){el.remove();delete alerts[e.call_id];} return;}
+  // 通话结束/被处理 → 清掉该通的提醒
+  if(e.kind==='human_joined'||e.kind==='call_ended'||e.kind==='approved'||e.kind==='rejected'){
+    const el=alerts[e.call_id]; if(el){clearTimeout(el._t);el.remove();delete alerts[e.call_id];} return;}
   if(e.kind!=='call_started'&&e.kind!=='escalation')return;
+  // 忽略 SSE 重放里的旧来电/转人工（单通最长 ~180s，超过 4 分钟必是已结束的，别再弹）
+  if(e.created_at){const age=(Date.now()-Date.parse(e.created_at))/1000; if(age>240)return;}
   let el=alerts[e.call_id];
-  if(!el){el=document.createElement('div');el.className='alert';alerts[e.call_id]=el;document.getElementById('alerts').appendChild(el);}
+  if(!el){el=document.createElement('div');el.className='alert';alerts[e.call_id]=el;document.getElementById('alerts').appendChild(el);
+    el._t=setTimeout(()=>{el.remove();delete alerts[e.call_id];},240000);}
   const esc=e.kind==='escalation';
   el.style.background=esc?'#fdecec':'';el.style.borderColor=esc?'#f3c0c0':'';
   const dial=esc?'<button class="join" style="border:0;cursor:pointer;margin-left:6px" onclick="dialGuard(\\''+e.call_id+'\\')">📞 打到我手机</button>':'';

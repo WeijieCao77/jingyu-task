@@ -249,6 +249,16 @@ async def entrypoint(ctx: JobContext) -> None:
     call_id = ctx.room.name or "call"
     sink = _make_event_sink(call_id)
 
+    # Tell the dashboard when this call ends (any reason: hang up, caller dropped,
+    # crash) so the "有访客来电 / 转人工" alert clears instead of lingering.
+    async def _on_shutdown(*_a) -> None:  # noqa: ANN002
+        try:
+            sink("call_ended", None, "通话结束", None)
+        except Exception:  # noqa: BLE001
+            pass
+
+    ctx.add_shutdown_callback(_on_shutdown)
+
     # Multi-tenant (opt-in): route this call to its tenant by the DIALED number,
     # so roster/access/notify/guard all use that tenant's config. No-op when
     # TENANTS_PATH is unset → single-tenant behaviour unchanged.
