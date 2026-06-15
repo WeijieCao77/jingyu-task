@@ -1,6 +1,6 @@
 # 首次运行 Smoke Check（真跑前/中排查清单）
 
-> 背景诚实说明：本项目在远程沙箱开发（无法连 OpenAI/LiveKit、无音频），**离线单测 37 个全绿**，
+> 背景诚实说明：本项目在远程沙箱开发（无法连 OpenAI/LiveKit、无音频），**离线单测 94 个全绿**，
 > 但端到端语音链路尚未真实执行过。本清单 = 第一次真跑最可能出问题的点 + 即时判别方法。
 > 给本地 Claude Code：跑验收时按此逐项核对，出错先对照"症状→原因"再修。
 
@@ -9,7 +9,7 @@
 | # | 检查 | 命令/方法 | 期望 |
 |---|---|---|---|
 | 1 | 依赖完整 | `pip install -r requirements.txt` 末尾无 error | exit 0 |
-| 2 | 单测全绿 | `PYTHONPATH=src pytest -q` | `39 passed` |
+| 2 | 单测全绿 | `PYTHONPATH=src pytest -q` | `94 passed` |
 | 3 | 模型已下载 | `PYTHONPATH=src python -m visitor_agent.agent download-files` | 正常退出（首次约 1–2 分钟） |
 | 4 | .env 生效 | `PYTHONPATH=src python -c "from dotenv import load_dotenv;load_dotenv();import os;print(bool(os.getenv('OPENAI_API_KEY')), os.getenv('LIVEKIT_URL'))"` | `True ws://localhost:7880` |
 | 5 | LiveKit 活着 | `curl -s localhost:7880` | 有响应（任意 HTTP 响应即可，连接被拒=容器没起） |

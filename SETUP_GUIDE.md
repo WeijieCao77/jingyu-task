@@ -97,7 +97,7 @@
    PUBLIC_BASE_URL 用我手机可达地址（隧道/Tailscale，别用 localhost）；
    ROSTER_PATH=roster.json（没有就用 roster.example.json）；ACCESS_LIST_PATH=access.example.json；
    GUARD_ACCESS_KEY=demo123。
-3. PYTHONPATH=src pytest -q（应 82 passed；缺 livekit 就先装）。
+3. PYTHONPATH=src pytest -q（应 94 passed；缺 livekit 就先装）。
 4. 起三个进程：本地 LiveKit（livekit-server.exe --dev）、web server、agent worker(dev)。
    记下 web 日志里 “SQLite database at <绝对路径>”，确认 agent 进程打印的是同一个路径。
 
@@ -119,7 +119,7 @@ H. 门卫鉴权：访客 /voice 仍能开；但 /dashboard /ask /admin 跳 /logi
 ### 📋 Prompt 2.6 —— v0.26 复测（只测这轮新改动，用现有 .env）
 ```
 我已同步到最新(v0.26)。基于现有 .env 复测这轮新改动，逐项给 ✅/❌ + 关键日志/截图。
-先 git pull、pip install -r requirements.txt、重启 web + agent(dev)、PYTHONPATH=src pytest -q（应 90 passed）。
+先 git pull、pip install -r requirements.txt、重启 web + agent(dev)、PYTHONPATH=src pytest -q（应 94 passed）。
 
 【对话体验（电话或 /voice，realtime）】
 1. 开场白：接通后 AI 是否先一句温和开场再问（不再冷冰冰"车牌号多少"）。
@@ -151,7 +151,7 @@ H. 门卫鉴权：访客 /voice 仍能开；但 /dashboard /ask /admin 跳 /logi
 4. 起本地 LiveKit（livekit-server.exe --dev）、web server、agent worker(dev) 三个进程。
 5. 让我打开 http://localhost:8080/voice 点"开始对话"实测：AI 是否 1~2 秒开口、对话是否自然、
    登记完后 http://localhost:8080/dashboard 是否出现这条记录、点"放行"是否抬杆(stub 打印)。
-6. 跑 PYTHONPATH=src pytest -q 应 76 passed。把结果和任何报错告诉我，报错先自查再问我。
+6. 跑 PYTHONPATH=src pytest -q 应 94 passed。把结果和任何报错告诉我，报错先自查再问我。
 ```
 
 ### 📋 Prompt 2.2 —— 配 Telegram 推送 + 自测（手机收卡片）

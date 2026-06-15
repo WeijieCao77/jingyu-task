@@ -27,7 +27,7 @@ src/visitor_agent/
   db/repo.py      SQLite 相对路径锚定项目根(持久化修复)；query_visits/count(status) 等只读查询
   sim/run_text.py 离线文本仿真（同一套逻辑，无需电话）
 scripts/setup_sip.sh  电话接入：建 LiveKit 入站 trunk+dispatch（见 TELEPHONY.md）
-tests/  76 个离线单测（沙箱缺 livekit 时 1 个 /token 用例跳过）   scenarios/ 仿真脚本
+tests/  94 个离线单测（沙箱缺 livekit 时 1 个 /token 用例跳过）   scenarios/ 仿真脚本
 ```
 
 ## 4. 今天已验证 / 状态（截至 v0.22）
