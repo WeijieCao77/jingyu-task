@@ -714,3 +714,7 @@ reason="job crashed"
 **4) 多门卫人工介入（`config.py` + `/takeover` 页）**：webhook 卡片对所有人是同一条、认不出谁点的，所以「人工介入」链接打开一个小页面，**列出每个门卫的拨号按钮**（当班的点自己那个 → 外呼对应号码进通话）+「电脑麦克风介入」按钮。配置 `TAKEOVER_GUARDS=名称:号码,...`；留空回退到单个 `GUARD_DIAL_NUMBER`。`sip_out.dial_guard(number=)` 本就支持指定号码。当前按用户要求只放一个号 `+18572091945`（靠回退，无需设 TAKEOVER_GUARDS）。
 
 **验证**：94 单测全绿；`build_markdown` 含三链接；`parse_takeover_guards` 回退/多门卫都对；`/reject` `/takeover` TestClient 冒烟（坏 token=链接无效、错号码=不在名单、拒绝→status=rejected、介入页列出门卫）；`_CONSOLE_HTML` 整段 JS 过 node 语法检查。⏳ 真机端到端（卡片点拒绝/人工介入、通话等结果）待用户实拨复测。
+
+### 真机实拨反馈（同日，两处）
+- **转人工不能自动外呼门卫**：原 `_on_escalate` 一触发就 `dial_guard` 直接打门卫手机——用户反馈应**先群通知、门卫点"接入"后再打**。已改：`_on_escalate` 去掉自动外呼，群通知带 `/takeover?room=...&reason=...` 链接；门卫点开→选接听方式（拨我手机/浏览器介入），点了才外呼。`/takeover` 增加 `?room=`（转人工时还没访客 token，用房间号定位）入口，与卡片 `?token=` 共用同一页。
+- **字母核对别用英文**：原 prompt 用"Dog 的 D / Boy 的 B"等英文单词消歧——国内很多访客听不懂。已改 `prompts.py`【核对确认】：改用**中文拼音联想**（北京的 B、东北的 D、朋友的 P、天津的 T、广州的 G、长城的 C…，E 用"鹅"、V 用"胜利手势"、U 用"马蹄形"），并主动用中文词反问。prompt 内已无任何英文消歧词。⏳ 待真机复测念字母效果。
