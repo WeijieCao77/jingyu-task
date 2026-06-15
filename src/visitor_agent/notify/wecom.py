@@ -31,16 +31,22 @@ def build_markdown(visit: dict, confirm_url: str) -> str:
     reject_url = confirm_url.replace("/confirm?", "/reject?")
     takeover_url = confirm_url.replace("/confirm?", "/takeover?")
 
-    # Highlight lines (blacklist/whitelist/returning) — red for a blacklist hit.
+    # Highlight lines — red for a blacklist hit, gray for the "上次来访" context
+    # line, green for the rest (常客 / 回访 tag).
     flags = ""
     for line in status_lines(visit):
-        color = "warning" if line.startswith("⛔") else "info"
+        if line.startswith("⛔"):
+            color = "warning"
+        elif line.startswith("📌"):
+            color = "comment"
+        else:
+            color = "info"
         flags += f'> <font color="{color}">{line}</font>\n'
 
     return (
         f"## {title(visit)}\n"
         f"{flags}"
-        f"> **车牌号**：<font color=\"info\">{plate}</font>\n"
+        f"> **车牌号**：**{plate}**\n"
         f"> **来访单位**：{company}\n"
         f"> **来访事由**：{reason}\n"
         f"> **手机号**：{phone}\n"

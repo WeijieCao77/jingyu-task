@@ -36,6 +36,11 @@ def status_lines(visit: dict) -> list[str]:
         lines.append("🔁 " + visit["returning_summary"])
     elif is_returning(visit):
         lines.append("🔁 老访客")
+    # Returning visitor: show what they came for LAST time on its own line, so the
+    # guard can confirm "还是和上次一样…" at a glance.
+    if is_returning(visit) and (visit.get("last_company") or visit.get("last_reason")):
+        lines.append("📌 上次来访：" + (visit.get("last_company") or "—")
+                     + " / " + (visit.get("last_reason") or "—"))
     return lines
 
 

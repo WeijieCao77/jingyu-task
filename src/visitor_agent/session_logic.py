@@ -71,7 +71,8 @@ class RegistrationSession:
 
     @staticmethod
     def _returning_summary(prof: dict) -> str:
-        """One-line returning-visitor summary for the guard's notification card."""
+        """One-line returning-visitor tag for the card. The last-visit detail is
+        shown on its OWN line (see common.status_lines), not crammed in here."""
         basis = {
             "plate+phone": "车牌+手机均匹配",
             "phone": "手机匹配·本人",
@@ -79,9 +80,8 @@ class RegistrationSession:
         }.get(prof.get("match_type", ""), "历史匹配")
         who = prof.get("name") or "老访客"
         count = prof.get("visit_count") or 0
-        nth = f"第{count + 1}次" if count else ""
-        last = f"上次{prof.get('last_company') or '—'}／{prof.get('last_reason') or '—'}"
-        parts = [who, basis] + ([nth] if nth else []) + [last]
+        nth = f"第{count + 1}次来" if count else ""
+        parts = [who, basis] + ([nth] if nth else [])
         return " · ".join(parts)
 
     @staticmethod
@@ -206,6 +206,8 @@ class RegistrationSession:
         payload["returning"] = bool(self.returning_match)
         if self.returning_match:
             payload["returning_summary"] = self._returning_summary(self.returning_match)
+            payload["last_company"] = self.returning_match.get("last_company")
+            payload["last_reason"] = self.returning_match.get("last_reason")
         if self.access_match:
             payload["access_status"] = self.access_match.get("status")
             payload["access_reason"] = self.access_match.get("reason")
