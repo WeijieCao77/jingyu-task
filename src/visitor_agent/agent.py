@@ -400,10 +400,37 @@ async def entrypoint(ctx: JobContext) -> None:
         for _p in list(getattr(ctx.room, "remote_participants", {}).values()):
             _prefill_caller_phone(_p)
 
-        # Guard decision from the web (confirm / reject): {"type":"approved"} or
-        # {"type":"rejected"} → AI tells the visitor, then we hang up shortly after
-        # (the idle watchdog waits for this decision instead of cutting the call).
-        # Best-effort — the visitor may already have hung up.
+        # Announce the guard's decision (confirm/reject) to the visitor, then arm the
+        # hang-up. TWO independent triggers funnel through here, idempotent via
+        # decided[0] (first wins):
+        #   1) DB poll in the idle watchdog — the web /confirm or /reject flips the
+        #      visit status in shared Postgres. This is the RELIABLE path.
+        #   2) a LiveKit data message {"type":"approved"|"rejected"} from the web —
+        #      faster but best-effort (cross-process data packets can be dropped).
+        def _announce_decision(status: str) -> None:
+            if decided[0]:
+                return
+            if status == "confirmed":
+                sink("approved", None, "保安已放行，AI 通知访客", None)
+                line = "好的，已经为您放行，请进，栏杆已经抬起，祝您一路顺利！"
+            elif status == "rejected":
+                sink("rejected", None, "保安拒绝放行，AI 告知访客", None)
+                line = ("不好意思，门卫这边暂时无法为您放行，"
+                        "麻烦您与接待人联系核实，或稍后再试，谢谢理解。")
+            else:
+                return
+            decided[0] = True
+            last_user[0] = time.monotonic()  # restart silence countdown so it isn't cut off
+            logger.info("announce guard decision: %s", status)
+
+            async def _go() -> None:
+                try:
+                    await _speak(session, cfg, line)
+                except Exception:  # noqa: BLE001
+                    logger.exception("decision announce error")
+
+            asyncio.create_task(_go())
+
         @ctx.room.on("data_received")
         def _on_data(*args) -> None:  # noqa: ANN002 — sig varies by livekit version
             try:
@@ -414,26 +441,9 @@ async def entrypoint(ctx: JobContext) -> None:
                 return
             mtype = msg.get("type")
             if mtype == "approved":
-                sink("approved", None, "保安已放行，AI 通知访客", None)
-                line = "好的，已经为您放行，请进，栏杆已经抬起，祝您一路顺利！"
+                _announce_decision("confirmed")
             elif mtype == "rejected":
-                sink("rejected", None, "保安拒绝放行，AI 告知访客", None)
-                line = ("不好意思，门卫这边暂时无法为您放行，"
-                        "麻烦您与接待人联系核实，或稍后再试，谢谢理解。")
-            else:
-                return
-            # Restart the silence countdown so the announcement isn't cut off, then
-            # arm the watchdog to hang up once the visitor has heard the result.
-            last_user[0] = time.monotonic()
-            decided[0] = True
-
-            async def _announce() -> None:
-                try:
-                    await _speak(session, cfg, line)
-                except Exception:  # noqa: BLE001
-                    logger.exception("decision announce error")
-
-            asyncio.create_task(_announce())
+                _announce_decision("rejected")
 
         # Phone keypad (DTMF) takeover: once the guard is in the call, 1=放行
         # (open gate + record released), 2=拒绝. Only the guard's keys count.
@@ -515,6 +525,20 @@ async def entrypoint(ctx: JobContext) -> None:
                 if cfg.max_call_sec and now - t0 > cfg.max_call_sec:
                     logger.info("max call duration reached → hang up")
                     break
+                # Reliable guard-decision signal: poll the visit status the web side
+                # flips on /confirm or /reject (shared DB). First to fire (this or the
+                # LiveKit data message) announces via the idempotent _announce_decision.
+                if not decided[0]:
+                    vid = getattr(getattr(reg, "notifier", None), "last_visit_id", None)
+                    if vid:
+                        try:
+                            from .db import repo as _repo
+
+                            v = _repo.get_visit_by_id(vid)
+                            if v is not None and v.status in ("confirmed", "rejected"):
+                                _announce_decision(v.status)
+                        except Exception:  # noqa: BLE001
+                            logger.exception("decision poll error")
                 if (cfg.hangup_silence_sec and decided[0]
                         and now - last_user[0] > cfg.hangup_silence_sec):
                     logger.info("post-decision silence → hang up")
