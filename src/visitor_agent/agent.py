@@ -346,6 +346,7 @@ async def entrypoint(ctx: JobContext) -> None:
         )
 
     last_user = [time.monotonic()]  # last visitor utterance time (idle watchdog)
+    decided = [False]  # set True once the guard approves/rejects → then we hang up
 
     # Stream the live transcript to the dashboard (both visitor + guard-query).
     @session.on("conversation_item_added")
@@ -386,8 +387,10 @@ async def entrypoint(ctx: JobContext) -> None:
         for _p in list(getattr(ctx.room, "remote_participants", {}).values()):
             _prefill_caller_phone(_p)
 
-        # Gate approved (FR-2): web confirm sends {"type":"approved"} → AI tells
-        # the visitor. Best-effort — the visitor may already have hung up.
+        # Guard decision from the web (confirm / reject): {"type":"approved"} or
+        # {"type":"rejected"} → AI tells the visitor, then we hang up shortly after
+        # (the idle watchdog waits for this decision instead of cutting the call).
+        # Best-effort — the visitor may already have hung up.
         @ctx.room.on("data_received")
         def _on_data(*args) -> None:  # noqa: ANN002 — sig varies by livekit version
             try:
@@ -396,15 +399,26 @@ async def entrypoint(ctx: JobContext) -> None:
                 msg = json.loads(bytes(raw).decode("utf-8"))
             except Exception:  # noqa: BLE001
                 return
-            if msg.get("type") != "approved":
+            mtype = msg.get("type")
+            if mtype == "approved":
+                sink("approved", None, "保安已放行，AI 通知访客", None)
+                line = "好的，已经为您放行，请进，栏杆已经抬起，祝您一路顺利！"
+            elif mtype == "rejected":
+                sink("rejected", None, "保安拒绝放行，AI 告知访客", None)
+                line = ("不好意思，门卫这边暂时无法为您放行，"
+                        "麻烦您与接待人联系核实，或稍后再试，谢谢理解。")
+            else:
                 return
-            sink("approved", None, "保安已放行，AI 通知访客", None)
+            # Restart the silence countdown so the announcement isn't cut off, then
+            # arm the watchdog to hang up once the visitor has heard the result.
+            last_user[0] = time.monotonic()
+            decided[0] = True
 
             async def _announce() -> None:
                 try:
-                    await _speak(session, cfg, "好的，已经为您放行，请进，栏杆已经抬起，祝您一路顺利！")
+                    await _speak(session, cfg, line)
                 except Exception:  # noqa: BLE001
-                    logger.exception("approved announce error")
+                    logger.exception("decision announce error")
 
             asyncio.create_task(_announce())
 
@@ -474,10 +488,11 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     await _speak(session, cfg, greeting, allow_interruptions=True)
 
-    # FR-4: end the call so the line doesn't stay open. After registration is done
-    # (and the AI has said goodbye), hang up on N seconds of visitor silence; a
-    # global cap guards against anything stuck open. Guard-query calls only get
-    # the global cap. Best-effort — the visitor may have already hung up.
+    # Keep the line open while the visitor waits for the guard's decision — DON'T
+    # hang up just because registration finished (user feedback: 让访客等放行的
+    #时候先别挂，门卫出结果再挂). After the guard approves/rejects, the AI announces
+    # it (sets decided[0]) and we hang up once the visitor falls silent again. A
+    # global max_call_sec cap guards against a guard who never acts / a stuck line.
     if not is_guard and (cfg.hangup_silence_sec or cfg.max_call_sec):
         async def _idle_watchdog() -> None:
             t0 = time.monotonic()
@@ -487,9 +502,9 @@ async def entrypoint(ctx: JobContext) -> None:
                 if cfg.max_call_sec and now - t0 > cfg.max_call_sec:
                     logger.info("max call duration reached → hang up")
                     break
-                if (cfg.hangup_silence_sec and reg.completed
+                if (cfg.hangup_silence_sec and decided[0]
                         and now - last_user[0] > cfg.hangup_silence_sec):
-                    logger.info("post-completion silence → hang up")
+                    logger.info("post-decision silence → hang up")
                     break
             try:
                 await session.aclose()

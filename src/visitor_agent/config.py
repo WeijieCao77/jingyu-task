@@ -111,8 +111,12 @@ class Settings(BaseSettings):
     #   注意：这是门卫的查询入口名单，跟上面访客侧的「常客名单」(access list) 完全不同，别混。
     guard_phones: str = ""
     # 转人工外呼：系统拨这个门卫号码、把他接进当前通话（电话原生介入，AI 让位）。
-    guard_dial_number: str = ""            # 门卫手机号 E.164
+    guard_dial_number: str = ""            # 门卫手机号 E.164（单个；多门卫见 takeover_guards）
     sip_outbound_trunk_id: str = ""        # LiveKit 出站 SIP trunk id（ST_...）；见 TELEPHONY.md
+    # 多门卫/多班次外呼名单：「名称:号码」逗号分隔，如 "白班张师傅:+1857...,夜班李师傅:+86..."。
+    # 「人工介入」页按这个列出每个门卫的拨号按钮——当班的点自己那个，外呼对应号码进通话。
+    # 留空=回退用单个 guard_dial_number（视作一个名为「门卫」的条目）。
+    takeover_guards: str = ""
 
     # ---- Multi-tenant (productization)；留空=单租户（现状不变） ----
     # 指向 tenants.json 即开启：按被叫号码路由到各租户独立的名单/通知/门卫配置。
@@ -132,3 +136,23 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Cached settings singleton."""
     return Settings()
+
+
+def parse_takeover_guards(cfg: Settings) -> list[dict]:
+    """Roster of guards reachable for phone takeover → [{'name','phone'}, ...].
+
+    Parses TAKEOVER_GUARDS ("名称:号码,名称:号码"); falls back to the single
+    guard_dial_number (as one entry named「门卫」) when unset. Used by the
+    /takeover page to render one dial button per guard."""
+    out: list[dict] = []
+    for part in (cfg.takeover_guards or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        name, phone = part.split(":", 1) if ":" in part else ("门卫", part)
+        phone = phone.strip()
+        if phone:
+            out.append({"name": name.strip() or "门卫", "phone": phone})
+    if not out and (cfg.guard_dial_number or "").strip():
+        out.append({"name": "门卫", "phone": cfg.guard_dial_number.strip()})
+    return out

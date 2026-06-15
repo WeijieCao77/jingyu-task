@@ -167,6 +167,20 @@ def mark_confirmed_by_id(visit_id: int) -> Visit | None:
         return visit
 
 
+def mark_rejected(token: str) -> Visit | None:
+    """Guard declined from the card: flip a pending visit to rejected (gate stays
+    shut). Never overrides an already-confirmed visit. Idempotent."""
+    with _session() as s:
+        visit = s.scalar(select(Visit).where(Visit.confirm_token == token))
+        if visit is None:
+            return None
+        if visit.status not in ("confirmed", "rejected"):
+            visit.status = "rejected"
+            s.commit()
+            s.refresh(visit)
+        return visit
+
+
 def find_recent_visit_by_plate(plate: str) -> Visit | None:
     """Most recent prior visit for a plate — powers returning-visitor greetings."""
     if not plate:

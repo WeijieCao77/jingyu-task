@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 from contextlib import asynccontextmanager
+from urllib.parse import quote
 
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import (
@@ -25,7 +26,7 @@ from fastapi.responses import (
 )
 from pydantic import BaseModel
 
-from ..config import get_settings
+from ..config import get_settings, parse_takeover_guards
 from ..db import repo
 from ..notify import gate
 
@@ -98,10 +99,11 @@ box-shadow:0 8px 30px rgba(0,0,0,.08);text-align:center;max-width:360px">
     return HTMLResponse(html)
 
 
-def _notify_room_approved(room: str | None) -> None:
-    """Best-effort: tell the visitor's live call the gate was approved, so the
-    AI can announce it (FR-2). No-op if LiveKit isn't configured/installed or the
-    visitor already hung up — must never break the confirm/gate flow."""
+def _notify_room(room: str | None, msg_type: str) -> None:
+    """Best-effort: send {"type": msg_type} to the visitor's live call so the AI
+    can react (approved → 已放行; rejected → 抱歉未放行). No-op if LiveKit isn't
+    configured/installed or the visitor already hung up — must never break the
+    confirm/reject flow."""
     if not room:
         return
     cfg = get_settings()
@@ -120,7 +122,7 @@ def _notify_room_approved(room: str | None) -> None:
                 await lkapi.room.send_data(
                     api.SendDataRequest(
                         room=room,
-                        data=json.dumps({"type": "approved"}).encode("utf-8"),
+                        data=json.dumps({"type": msg_type}).encode("utf-8"),
                         kind=api.DataPacketKind.KIND_RELIABLE,
                         topic="gate",
                     )
@@ -128,10 +130,18 @@ def _notify_room_approved(room: str | None) -> None:
             finally:
                 await lkapi.aclose()
 
-        # Bounded so a slow/unreachable LiveKit can't delay the guard's confirm.
+        # Bounded so a slow/unreachable LiveKit can't delay the guard's action.
         asyncio.run(asyncio.wait_for(_send(), timeout=3.0))
-    except Exception:  # noqa: BLE001 — visitor may have hung up; never break confirm
+    except Exception:  # noqa: BLE001 — visitor may have hung up; never break the flow
         pass
+
+
+def _notify_room_approved(room: str | None) -> None:
+    _notify_room(room, "approved")
+
+
+def _notify_room_rejected(room: str | None) -> None:
+    _notify_room(room, "rejected")
 
 
 @app.get("/health")
@@ -170,6 +180,84 @@ def confirm(token: str = Query(...)) -> HTMLResponse:
     )
     head = "已放行 ✓" if not already else "已确认（重复点击）"
     return _page(head, detail + "<br><br>抬杆指令已发送。")
+
+
+@app.get("/reject", response_class=HTMLResponse)
+def reject(token: str = Query(...)) -> HTMLResponse:
+    """Guard declines from the card (❌ 拒绝放行): mark rejected, gate stays shut,
+    and tell the visitor's live call so the AI says so. Tokenized + public like
+    /confirm (guard taps it in the WeCom in-app browser, no login)."""
+    visit = repo.get_visit_by_token(token)
+    if visit is None:
+        return _page("链接无效", "未找到对应的访客记录。", color="#c62828")
+    if visit.status == "confirmed":
+        return _page("已放行 · 无法再拒绝",
+                     f"车牌 <b>{visit.plate or '—'}</b> 已被放行，无法再标记拒绝。", color="#c77b1a")
+    first = visit.status != "rejected"
+    rejected = repo.mark_rejected(token)
+    v = rejected or visit
+    if first and rejected is not None:
+        call_id = f"visit-{v.id}"
+        repo.log_event(call_id, "rejected", text=f"保安拒绝放行 {v.plate or ''}")
+        _notify_room_rejected(v.room)  # AI tells the visitor (best-effort)
+    detail = f"车牌 <b>{v.plate or '—'}</b>　{v.company or '—'}　{v.reason or '—'}"
+    return _page("已拒绝放行 ✕", detail + "<br><br>栏杆不会抬起，已告知访客本次未予放行。", color="#c62828")
+
+
+@app.get("/takeover", response_class=HTMLResponse)
+async def takeover(token: str = Query(...), dial: str = "") -> HTMLResponse:
+    """人工介入 (📞): the guard taps this from the card. Lists the on-duty guards
+    to phone into the live call (?dial=<phone> rings that one) plus a browser-join
+    option. Tokenized + roster-validated: only a real card link can dial, and only
+    a configured number — supports multiple guards / shifts (each taps their own)."""
+    visit = repo.get_visit_by_token(token)
+    if visit is None:
+        return _page("链接无效", "未找到对应的访客记录。", color="#c62828")
+    cfg = get_settings()
+    guards = parse_takeover_guards(cfg)
+    room = visit.room or ""
+    info = (f"车牌 <b>{visit.plate or '—'}</b>　{visit.company or '—'}　"
+            f"{visit.reason or '—'}　{visit.phone or ''}")
+    # Action: dial a chosen guard into the call.
+    if dial:
+        if dial not in {g["phone"] for g in guards}:
+            return _page("号码不在名单", "该号码不在门卫外呼名单里，已忽略。", color="#c62828")
+        if not (cfg.sip_outbound_trunk_id and room):
+            return _page("暂时无法外呼", "未配置外呼中继，或这通通话已结束。", color="#c77b1a")
+        from ..sip_out import dial_guard
+        try:
+            ok = await asyncio.wait_for(dial_guard(cfg, room, number=dial), timeout=6.0)
+        except Exception:  # noqa: BLE001
+            ok = False
+        name = next((g["name"] for g in guards if g["phone"] == dial), "门卫")
+        if ok:
+            return _page("正在拨打 " + name,
+                         info + f"<br><br>正在拨打 <b>{dial}</b>，请接听后与访客通话；"
+                         "通话中按 <b>1 放行</b>、<b>2 拒绝</b>。", color="#1ea672")
+        return _page("拨打失败", "外呼未成功，请改用浏览器介入或稍后再试。", color="#c62828")
+    # Page: list each guard + a browser-join option.
+    base = cfg.public_base_url.rstrip("/")
+    btns = "".join(
+        f'<a class="b phone" href="/takeover?token={quote(token)}&dial={quote(g["phone"], safe="")}">'
+        f'📞 拨给 {g["name"]}（{g["phone"]}）</a>'
+        for g in guards
+    ) or '<p style="color:#c77b1a">未配置门卫外呼号码（TAKEOVER_GUARDS / GUARD_DIAL_NUMBER）。</p>'
+    browser = (f'<a class="b web" href="{base}/guard_call?room={quote(room, safe="")}" '
+               f'target="_blank">💻 我用电脑麦克风介入</a>') if room else ""
+    html = f"""<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>人工介入</title>
+<style>body{{font-family:-apple-system,Segoe UI,'PingFang SC',sans-serif;background:#f4f6fa;margin:0;padding:24px;color:#222}}
+.card{{max-width:520px;margin:0 auto;background:#fff;border-radius:18px;box-shadow:0 8px 30px rgba(20,30,50,.08);padding:22px}}
+h1{{font-size:18px;margin:0 0 6px}} .info{{color:#555;font-size:14px;margin-bottom:18px}}
+.b{{display:block;text-decoration:none;text-align:center;padding:14px;border-radius:12px;margin:10px 0;font-size:16px;font-weight:600}}
+.phone{{background:#1ea672;color:#fff}} .web{{background:#f0f3f8;color:#2b3a52;border:1px solid #e3e9f2}}
+.tip{{color:#8a94a6;font-size:13px;margin-top:14px;line-height:1.6}}</style></head><body>
+<div class="card"><h1>📞 人工介入 · 选择接听的门卫</h1>
+<div class="info">{info}</div>
+{btns}{browser}
+<div class="tip">· 点「拨给…」系统会拨打对应门卫手机并接进这通通话，门卫和访客直接对讲；通话中按 <b>1 放行</b>、<b>2 拒绝</b>。<br>· 多门卫/多班次时，当班的门卫点自己那一个即可。</div>
+</div></body></html>"""
+    return HTMLResponse(html)
 
 
 # ----- live dashboard -----
@@ -936,8 +1024,8 @@ async function runQuery(){
     const tb=document.getElementById('rows'); const vs=d.visits||[];
     document.getElementById('db-empty').style.display=vs.length?'none':'block';
     tb.innerHTML=vs.map(v=>{
-      const act=v.status==='confirmed'?'<span class="pill ok">已放行 '+(v.confirmed_at?v.confirmed_at.slice(11,16):'')+'</span>':'<span class="pill wait">待核对</span>';
-      const btn=v.access_status==='blacklist'?'<span class="pill bad">⛔ 禁止放行</span>':(v.status==='confirmed'?'':'<button class="go" onclick="confirmVisit('+v.id+')">放行</button>');
+      const act=v.status==='confirmed'?'<span class="pill ok">已放行 '+(v.confirmed_at?v.confirmed_at.slice(11,16):'')+'</span>':v.status==='rejected'?'<span class="pill bad">已拒绝</span>':'<span class="pill wait">待核对</span>';
+      const btn=v.access_status==='blacklist'?'<span class="pill bad">⛔ 禁止放行</span>':(v.status==='confirmed'||v.status==='rejected'?'':'<button class="go" onclick="confirmVisit('+v.id+')">放行</button>');
       const flag=v.access_status==='blacklist'?'<span class="pill bad">⛔黑名单</span> ':v.access_status==='whitelist'?'<span class="pill vip">✅常客</span> ':'';
       const cls=seen.has(v.id)?'':'new'; seen.add(v.id);
       return '<tr class="'+cls+'"><td class="plate">'+flag+(v.plate||'—')+'</td><td>'+(v.company||'—')+'</td><td>'+(v.reason||'—')+

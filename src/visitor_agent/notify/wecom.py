@@ -26,6 +26,10 @@ def build_markdown(visit: dict, confirm_url: str) -> str:
     phone = visit.get("phone") or "—"
     entry_time = visit.get("entry_time") or "—"
     name_line = f"> **姓名**：{visit['name']}\n" if visit.get("name") else ""
+    # Same token, different action paths — three tappable links (群机器人 webhook
+    # cards can't host native callback buttons, so these are links the guard taps).
+    reject_url = confirm_url.replace("/confirm?", "/reject?")
+    takeover_url = confirm_url.replace("/confirm?", "/takeover?")
 
     # Highlight lines (blacklist/whitelist/returning) — red for a blacklist hit.
     flags = ""
@@ -42,7 +46,8 @@ def build_markdown(visit: dict, confirm_url: str) -> str:
         f"> **手机号**：{phone}\n"
         f"{name_line}"
         f"> **入场时间**：{entry_time}\n\n"
-        f"[✅ 确认放行]({confirm_url})"
+        f"[✅ 确认放行]({confirm_url})　　[❌ 拒绝放行]({reject_url})\n"
+        f"[📞 人工介入·电话核实]({takeover_url})"
     )
 
 

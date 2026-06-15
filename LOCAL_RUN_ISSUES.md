@@ -698,3 +698,19 @@ reason="job crashed"
 **真·修复（agent.py）**：realtime 的 `AgentSession` 改成 `allow_interruptions=True`（server_vad 下唯一合法值）。**防吞字改由模型层负责**——`build_realtime` 里 `TurnDetection(interrupt_response=False)`（默认）让 OpenAI 服务端不因回声/噪音打断 AI 自己的回复，正是我们要的效果。`REALTIME_ALLOW_INTERRUPT=1` 把 interrupt_response 打开恢复 barge-in。两层语义归一到 interrupt_response 这一个旋钮。
 
 **教训/给远程**：① realtime + server_vad 时 **AgentSession.allow_interruptions 必须 True**，"禁打断"只能在模型层用 interrupt_response；② 任何 voice 配置改动**必须真机打一通电话验证**——光 `pytest`/探测客户端/`/health`/worker `registered` 都不够，job 是**接通才跑** session.start 才会触发这条校验；③ livekit 全家桶已钉 `==1.5.17`，别松回 `~=1.5`。
+
+---
+
+## 2026-06-14 功能轮次：门卫控制台合一 + 卡片三动作 + 通话等门卫出结果再挂 + 多门卫人工介入
+
+按用户反馈一次做了四块（前端 + 通知 + 通话生命周期 + 配置）：
+
+**1) 门卫网页合并成一个标签页（`web/server.py` `_CONSOLE_HTML`）**：原来分散的 4 个界面（门卫控制台 / 对话查询 / 筛选查询 / 常客名单）合成**一页 3 标签**——📂 数据库（控制台+筛选合并：筛选+统计+时段图+访客表带放行按钮+实时来电/转人工提醒）/ 💬 对话查询 / 🏆 常客名单。`/dashboard /ask /admin /` 都返回这一页（按路径选中标签）。顺带修了 **dashboard 静默空白 bug**：数据接口 401 时自动跳 `/login`，不再给空表。旧 `_DASHBOARD/_ASK/_ADMIN_HTML` 暂留作备份（已无引用，待清理）。
+
+**2) 企业微信卡片三动作（`notify/wecom.py`）**：原来只有「✅确认放行」，加上「❌拒绝放行」「📞人工介入」。群机器人 webhook 卡片只能放**可点链接**（原生回调按钮需自建应用+可信IP，Railway 用不了），所以三个都是同 token、不同路径的链接（`/confirm` `/reject` `/takeover`）。
+
+**3) 通话"等门卫出结果再挂"（`agent.py`）**：原来登记完 + 静默 N 秒就挂（FR-4）。改成**登记完不挂、保持通话**等门卫放行/拒绝；web 端放行→`{"type":"approved"}`、拒绝→新增 `{"type":"rejected"}` 数据消息 → AI 播报「已放行请进」/「抱歉未能放行」→ 播完静默 N 秒再挂。看门狗判据从 `reg.completed` 改成 `decided[0]`；门卫一直不处理则 `MAX_CALL_SEC`(默认180s)兜底。新增 `repo.mark_rejected` + `_notify_room_rejected`。
+
+**4) 多门卫人工介入（`config.py` + `/takeover` 页）**：webhook 卡片对所有人是同一条、认不出谁点的，所以「人工介入」链接打开一个小页面，**列出每个门卫的拨号按钮**（当班的点自己那个 → 外呼对应号码进通话）+「电脑麦克风介入」按钮。配置 `TAKEOVER_GUARDS=名称:号码,...`；留空回退到单个 `GUARD_DIAL_NUMBER`。`sip_out.dial_guard(number=)` 本就支持指定号码。当前按用户要求只放一个号 `+18572091945`（靠回退，无需设 TAKEOVER_GUARDS）。
+
+**验证**：94 单测全绿；`build_markdown` 含三链接；`parse_takeover_guards` 回退/多门卫都对；`/reject` `/takeover` TestClient 冒烟（坏 token=链接无效、错号码=不在名单、拒绝→status=rejected、介入页列出门卫）；`_CONSOLE_HTML` 整段 JS 过 node 语法检查。⏳ 真机端到端（卡片点拒绝/人工介入、通话等结果）待用户实拨复测。
