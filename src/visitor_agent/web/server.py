@@ -952,7 +952,6 @@ _CONSOLE_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
     <button class="tab" data-t="chat">💬 对话查询</button>
     <button class="tab" data-t="vip">🏆 常客名单</button>
   </div>
-  <a class="logout" href="/login">🔒 登录/切换</a>
 </header>
 <div id="alerts"></div>
 <div class="wrap">
