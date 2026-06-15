@@ -46,8 +46,10 @@ def build_markdown(visit: dict, confirm_url: str) -> str:
         f"> **手机号**：{phone}\n"
         f"{name_line}"
         f"> **入场时间**：{entry_time}\n\n"
-        f"[✅ 确认放行]({confirm_url})　　[❌ 拒绝放行]({reject_url})\n"
-        f"[📞 人工介入·电话核实]({takeover_url})"
+        f"<font color=\"comment\">———— 请门卫选择处理 ————</font>\n"
+        f"[【 ✅ 确认放行 】]({confirm_url})\n"
+        f"[【 ❌ 拒绝放行 】]({reject_url})\n"
+        f"[【 📞 人工介入 · 电话核实 】]({takeover_url})"
     )
 
 
