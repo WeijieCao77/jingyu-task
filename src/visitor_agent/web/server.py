@@ -1000,7 +1000,7 @@ function renderAlert(e){
   const esc=e.kind==='escalation';
   el.style.background=esc?'#fdecec':'';el.style.borderColor=esc?'#f3c0c0':'';
   const dial=esc?'<button class="join" style="border:0;cursor:pointer;margin-left:6px" onclick="dialGuard(\\''+e.call_id+'\\')">📞 打到我手机</button>':'';
-  el.innerHTML=(esc?'⚠️ <b>访客请求转人工</b>　':'📞 <b>有访客来电</b>　')+'<span style="color:#8a94a6">'+(e.text||'')+'</span>'+
+  el.innerHTML=(esc?'⚠️ <b>访客请求转人工</b>　':'📞 <b>有访客来电</b>　')+'<span style="color:#8a94a6">'+(esc?(e.text||''):(e.call_id&&e.call_id.indexOf('call_')===0?'主叫 '+e.call_id.slice(5).split('_')[0]:''))+'</span>'+
     '<a class="join" href="/guard_call?room='+encodeURIComponent(e.call_id)+'" target="_blank">'+(esc?'浏览器介入':'介入通话')+'</a>'+dial;
 }
 async function dialGuard(room){try{const r=await fetch('/api/dial_guard?room='+encodeURIComponent(room),{method:'POST'});
