@@ -73,7 +73,7 @@ src/visitor_agent/
   db/               visits + call_events 模型/仓储（回访 recognize、常客 visitor_profiles）
   web/server.py     /voice /qr /dashboard /admin /confirm /api/* /guard/query
   sim/run_text.py   离线文本仿真（同一套对话逻辑，无需电话）
-tests/              37 个离线单测           scenarios/   仿真脚本
+tests/              94 个离线单测           scenarios/   仿真脚本
 ```
 
 ---

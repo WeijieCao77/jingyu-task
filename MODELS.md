@@ -10,7 +10,7 @@
 | 大脑 LLM | `gpt-4o-mini`（OpenAI） | `LLM_PROVIDER` / `LLM_MODEL` / `LLM_BASE_URL` |
 | 听 STT | `gpt-4o-transcribe`（OpenAI, zh） | `STT_PROVIDER` / `STT_MODEL` / `STT_LANGUAGE` |
 | 说 TTS | `gpt-4o-mini-tts`（OpenAI） | `TTS_PROVIDER` / `TTS_MODEL` / `TTS_VOICE` |
-| 语音架构 | pipeline（三段）；可切 realtime（speech-to-speech，`gpt-realtime`） | `VOICE_MODE` / `REALTIME_MODEL` |
+| 语音架构 | **realtime（默认, speech-to-speech, `gpt-realtime`）**；可切 pipeline（三段 STT→LLM→TTS） | `VOICE_MODE` / `REALTIME_MODEL` |
 
 ## 2. 换 LLM 大脑
 

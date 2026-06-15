@@ -1,10 +1,12 @@
 # 技术选型与设计说明（DESIGN）
 
 > 本文回答答辩的核心问题：**为什么选这个、不选那个**。每个决策都附了取舍与证据。
+>
+> ⚠️ **更新说明**：本文是项目早期"pipeline 优先"的选型分析（保留以展示推演过程）。**项目现已默认 `VOICE_MODE=realtime`（gpt-realtime 语音到语音，首句更快），pipeline 作为可回退路径**——realtime 的决策与 A/B 取舍见 [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) · [ARCHITECTURE_AB.md](ARCHITECTURE_AB.md) · [MODELS.md](MODELS.md)。下文涉及"默认 pipeline / Claude Haiku / Discord"等处按此理解。
 
 ## 0. 一句话架构
 
-> LiveKit Agents（编排）+ Twilio（电话/SIP）+ **STT→LLM→TTS pipeline**（OpenAI STT · Claude Haiku 4.5 · OpenAI TTS）+ 企业微信群机器人 Webhook（推送）+ SQLite/Neon（数据）。抬杆为 stub。
+> LiveKit Agents（编排）+ Twilio（电话/SIP）+ **默认 realtime 语音到语音（`gpt-realtime`）**，可回退 STT→LLM→TTS pipeline（OpenAI STT · `gpt-4o-mini` · OpenAI TTS）+ 企业微信群机器人 Webhook（推送）+ SQLite/Neon（数据）。抬杆为 stub。
 
 ---
 

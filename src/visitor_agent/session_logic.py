@@ -14,7 +14,7 @@ dependency on the database and stays unit-testable.
 
 from __future__ import annotations
 
-from typing import Awaitable, Callable, Protocol
+from typing import Callable, Protocol
 
 from .slots import VisitorInfo
 
