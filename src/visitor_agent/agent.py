@@ -289,19 +289,22 @@ async def entrypoint(ctx: JobContext) -> None:
         )
 
         async def _on_escalate(reason) -> None:  # noqa: ANN001
-            from .notify import dispatch
-            from .sip_out import dial_guard
+            from urllib.parse import quote
 
+            from .notify import dispatch
+
+            # Do NOT auto-dial the guard. Send the group an alert with a link; the
+            # on-duty guard taps it to CHOOSE to be phoned in (or browser-join) —
+            # 经门卫同意后才外呼（用户反馈：转人工不能直接打给门卫）。/takeover 页按
+            # TAKEOVER_GUARDS 列出每个门卫，当班的点自己那个才拨。
             base = cfg.public_base_url.rstrip("/")
-            link = f"{base}/guard_call?room={ctx.room.name}"
+            link = f"{base}/takeover?room={quote(ctx.room.name, safe='')}"
+            if reason:
+                link += f"&reason={quote(reason, safe='')}"
             txt = (f"⚠️ 访客请求转人工{('：' + reason) if reason else ''}\n"
-                   f"房间：{ctx.room.name}\n介入：{link}\n"
-                   f"（电话接听后：按 1 放行、按 2 拒绝）")
+                   f"房间：{ctx.room.name}\n"
+                   f"👉 是否接入？点此选择接听方式（拨我手机 / 浏览器介入）：\n{link}")
             await dispatch.push_alert(cfg, txt)
-            # Phone-native takeover: ring the guard and bridge them in (no-op if
-            # GUARD_DIAL_NUMBER / SIP_OUTBOUND_TRUNK_ID unset). AI yields when the
-            # guard SIP participant ('guard-phone') joins.
-            await dial_guard(cfg, ctx.room.name)
 
         agent = VisitorAgent(reg, on_escalate=_on_escalate)
 

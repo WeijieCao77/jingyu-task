@@ -205,20 +205,32 @@ def reject(token: str = Query(...)) -> HTMLResponse:
 
 
 @app.get("/takeover", response_class=HTMLResponse)
-async def takeover(token: str = Query(...), dial: str = "") -> HTMLResponse:
-    """人工介入 (📞): the guard taps this from the card. Lists the on-duty guards
-    to phone into the live call (?dial=<phone> rings that one) plus a browser-join
-    option. Tokenized + roster-validated: only a real card link can dial, and only
-    a configured number — supports multiple guards / shifts (each taps their own)."""
-    visit = repo.get_visit_by_token(token)
-    if visit is None:
-        return _page("链接无效", "未找到对应的访客记录。", color="#c62828")
+async def takeover(token: str = "", room: str = "", reason: str = "",
+                   dial: str = "") -> HTMLResponse:
+    """人工介入 (📞): opened from the card (?token=, after registration) OR from a
+    转人工 alert (?room=, mid-call). Lists the on-duty guards; the guard taps to be
+    phoned into the call (?dial=<phone>) — we DIAL ONLY ON THAT TAP, never
+    automatically (用户反馈：转人工要门卫同意后再外呼). Roster-validated; supports
+    multiple guards/shifts (each taps their own number) + a browser-join option."""
     cfg = get_settings()
     guards = parse_takeover_guards(cfg)
-    room = visit.room or ""
-    info = (f"车牌 <b>{visit.plate or '—'}</b>　{visit.company or '—'}　"
-            f"{visit.reason or '—'}　{visit.phone or ''}")
-    # Action: dial a chosen guard into the call.
+    if token:
+        visit = repo.get_visit_by_token(token)
+        if visit is None:
+            return _page("链接无效", "未找到对应的访客记录。", color="#c62828")
+        room = visit.room or ""
+        info = (f"车牌 <b>{visit.plate or '—'}</b>　{visit.company or '—'}　"
+                f"{visit.reason or '—'}　{visit.phone or ''}")
+    elif room:
+        info = f"⚠️ 访客请求转人工{('：' + reason) if reason else ''}<br>房间 {room}"
+    else:
+        return _page("链接无效", "缺少访客信息（token 或 room）。", color="#c62828")
+    # Identity carried on the dial / browser links (token after registration,
+    # room for a mid-call escalation).
+    ident = f"token={quote(token, safe='')}" if token else f"room={quote(room, safe='')}"
+    if reason and not token:
+        ident += f"&reason={quote(reason, safe='')}"
+    # Action: dial a chosen guard into the call (only when the guard taps a button).
     if dial:
         if dial not in {g["phone"] for g in guards}:
             return _page("号码不在名单", "该号码不在门卫外呼名单里，已忽略。", color="#c62828")
@@ -238,7 +250,7 @@ async def takeover(token: str = Query(...), dial: str = "") -> HTMLResponse:
     # Page: list each guard + a browser-join option.
     base = cfg.public_base_url.rstrip("/")
     btns = "".join(
-        f'<a class="b phone" href="/takeover?token={quote(token)}&dial={quote(g["phone"], safe="")}">'
+        f'<a class="b phone" href="/takeover?{ident}&dial={quote(g["phone"], safe="")}">'
         f'📞 拨给 {g["name"]}（{g["phone"]}）</a>'
         for g in guards
     ) or '<p style="color:#c77b1a">未配置门卫外呼号码（TAKEOVER_GUARDS / GUARD_DIAL_NUMBER）。</p>'
