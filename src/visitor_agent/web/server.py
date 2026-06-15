@@ -285,22 +285,11 @@ def api_profiles(min_visits: int = 1) -> JSONResponse:
 
 
 def _range_window(range_: str):
-    """Map today|week|month|all → (since, until) in the configured timezone."""
-    from datetime import datetime, timedelta, timezone
-    from zoneinfo import ZoneInfo
+    """Map today|week|month|all → (since, until). Shared with the NL guard-query
+    agent (timeutil.range_window) so both surfaces compute ranges identically."""
+    from ..timeutil import range_window
 
-    tz = ZoneInfo(get_settings().timezone)
-    now = datetime.now(tz)
-    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    if range_ == "today":
-        since = midnight
-    elif range_ == "week":
-        since = midnight - timedelta(days=now.weekday())
-    elif range_ == "month":
-        since = midnight.replace(day=1)
-    else:
-        return None, None
-    return since.astimezone(timezone.utc), None
+    return range_window(range_, get_settings().timezone)
 
 
 @app.get("/api/query")

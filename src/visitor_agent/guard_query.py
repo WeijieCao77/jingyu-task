@@ -21,12 +21,15 @@ TOOLS = [
     {
         "name": "count_visits",
         "description": "统计访问车辆数量，可按时间范围、来访单位、放行状态过滤。返回整数。"
+                       "时间范围**优先用 range**（today/week/month/all），不要自己算日期，"
+                       "这样和后台数字一致；只有要精确自定义区间才用 since_iso/until_iso。"
                        "问'多少辆被放行/已放行'时 status 传 confirmed；'待核对/未放行'传 pending。",
         "input_schema": {
             "type": "object",
             "properties": {
-                "since_iso": {"type": "string", "description": "起始时间 ISO8601（含），可空"},
-                "until_iso": {"type": "string", "description": "结束时间 ISO8601（含），可空"},
+                "range": {"type": "string", "description": "时间范围：today=今天 / week=本周 / month=本月 / all=全部（优先用这个）"},
+                "since_iso": {"type": "string", "description": "自定义起始时间 ISO8601（含），可空"},
+                "until_iso": {"type": "string", "description": "自定义结束时间 ISO8601（含），可空"},
                 "company": {"type": "string", "description": "来访单位关键词，可空"},
                 "status": {"type": "string", "description": "放行状态：confirmed=已放行 / pending=待核对；留空=全部"},
             },
@@ -47,11 +50,12 @@ TOOLS = [
     },
     {
         "name": "busiest_hours",
-        "description": "返回各小时(0-23)的访问次数直方图，用于判断高峰时段。",
+        "description": "返回各小时(0-23)的访问次数直方图，用于判断高峰时段。时间范围优先用 range。",
         "input_schema": {
             "type": "object",
             "properties": {
-                "since_iso": {"type": "string", "description": "起始时间 ISO8601，可空"},
+                "range": {"type": "string", "description": "today/week/month/all，优先用这个"},
+                "since_iso": {"type": "string", "description": "自定义起始时间 ISO8601，可空"},
             },
         },
     },
@@ -81,12 +85,25 @@ def _parse_iso(value: str | None) -> datetime | None:
         return None
 
 
+def _resolve_window(args: dict):
+    """(since, until) for a tool call. Prefer the `range` enum (today/week/month/
+    all) — resolved by the SAME helper the structured /api/query uses — so NL
+    answers match the dashboard exactly. Fall back to custom since_iso/until_iso."""
+    rng = (args.get("range") or "").strip().lower()
+    if rng in ("today", "week", "month", "all"):
+        from .timeutil import range_window
+
+        return range_window(rng, get_settings().timezone)
+    return _parse_iso(args.get("since_iso")), _parse_iso(args.get("until_iso"))
+
+
 def run_tool(name: str, args: dict) -> str:
     """Execute one read-only query tool and return a JSON string result."""
     if name == "count_visits":
+        since, until = _resolve_window(args)
         n = repo.count_visits(
-            since=_parse_iso(args.get("since_iso")),
-            until=_parse_iso(args.get("until_iso")),
+            since=since,
+            until=until,
             company=args.get("company"),
             status=args.get("status") or None,
         )
@@ -100,7 +117,8 @@ def run_tool(name: str, args: dict) -> str:
         )
         return json.dumps([v.to_dict() for v in visits], ensure_ascii=False)
     if name == "busiest_hours":
-        hist = repo.visits_by_hour(since=_parse_iso(args.get("since_iso")))
+        since, _ = _resolve_window(args)
+        hist = repo.visits_by_hour(since=since)
         return json.dumps({"by_hour": hist})
     if name == "frequent_visitors":
         profiles = repo.visitor_profiles(
@@ -112,11 +130,14 @@ def run_tool(name: str, args: dict) -> str:
 
 
 def _system_prompt(cfg) -> str:
-    now = datetime.now(timezone.utc).astimezone()
+    from zoneinfo import ZoneInfo
+
+    now = datetime.now(ZoneInfo(cfg.timezone))
     return (
         "你是工业园区的门卫数据助手，和保安多轮对话。基于访客登记数据库回答中文提问。"
         f"当前时间是 {now.isoformat()}（{cfg.timezone}）。"
-        "需要时间范围时（本周/今天/这个月等）请自行换算成 ISO8601 传给工具。"
+        "**今天/本周/本月/全部 这类范围，直接给工具传 range 参数（today/week/month/all），"
+        "不要自己算 ISO 日期**——这样数字才和后台一致；只有要精确自定义区间时才用 since_iso/until_iso。"
         "支持追问：结合上文理解'那上个月呢''他呢'这类省略问法。"
         "**回答前必须先调用查询工具拿到真实数据，严禁凭空报数字或拒答**；"
         "只有工具确实返回空/0 时才说没有。问放行数量时记得用 status=confirmed。"
