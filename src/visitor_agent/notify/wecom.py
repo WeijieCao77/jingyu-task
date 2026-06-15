@@ -46,7 +46,7 @@ def build_markdown(visit: dict, confirm_url: str) -> str:
     return (
         f"## {title(visit)}\n"
         f"{flags}"
-        f"> **车牌号**：**{plate}**\n"
+        f"> **车牌号**：{plate}\n"
         f"> **来访单位**：{company}\n"
         f"> **来访事由**：{reason}\n"
         f"> **手机号**：{phone}\n"
