@@ -403,7 +403,12 @@ async def entrypoint(ctx: JobContext) -> None:
     if _echo_guard:
         import os as _os
 
-        _settle = max(0.0, float(_os.getenv("REALTIME_ECHO_SETTLE_MS", "600")) / 1000.0)
+        # Default 1000ms: must exceed the echo round-trip so the AI's own tail has
+        # fully arrived (and been dropped) before we listen. The call path here is
+        # cross-Pacific (~0.4–0.5s RTT), so 600ms left a boundary race that leaked
+        # one short reply; 1s clears it with margin. A visitor naturally pauses
+        # longer than this before answering, so it doesn't clip them. Env-tunable.
+        _settle = max(0.0, float(_os.getenv("REALTIME_ECHO_SETTLE_MS", "1000")) / 1000.0)
 
         def _set_ears(on: bool) -> None:
             try:
