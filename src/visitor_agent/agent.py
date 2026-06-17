@@ -53,6 +53,8 @@ from .providers import (
     build_tts,
     build_turn_detection,
     build_vad,
+    realtime_allow_interrupt,
+    realtime_server_vad,
 )
 from .session_logic import LiveNotifier, RegistrationSession, make_db_lookup
 
@@ -332,22 +334,32 @@ async def entrypoint(ctx: JobContext) -> None:
 
     if cfg.voice_mode == "realtime":
         # Speech-to-speech: one realtime model replaces STT+LLM+TTS (lowest
-        # latency; turn detection runs server-side). The roster / returning /
-        # slot-filling logic lives in session_logic and is voice-mode-independent,
-        # so it keeps working unchanged here.
+        # latency). The roster / returning / slot-filling logic lives in
+        # session_logic and is voice-mode-independent, so it keeps working here.
         logger.info("voice_mode=realtime (speech-to-speech)")
-        # IMPORTANT: when the realtime model uses server-side turn detection,
-        # livekit-agents REQUIRES allow_interruptions=True on the session — passing
-        # False raises ValueError and crashes EVERY call at session.start() (true on
-        # both 1.5.x and 1.6.x). Anti-吞字 (phone echo / ambient noise must not cut
-        # the AI off mid-sentence) is therefore done at the MODEL layer instead, via
-        # TurnDetection(interrupt_response=False) in build_realtime — that stops the
-        # server from interrupting the AI's own reply, which is exactly what we want.
-        # REALTIME_ALLOW_INTERRUPT=1 flips interrupt_response back on (barge-in).
-        session = AgentSession(
-            llm=build_realtime(cfg),
-            allow_interruptions=True,
-        )
+        if realtime_server_vad():
+            # LEGACY: OpenAI server-side turn detection. It REQUIRES
+            # allow_interruptions=True — passing False raises ValueError and crashes
+            # EVERY call at session.start() (true on 1.5.x and 1.6.x). Caveat: on an
+            # echoey phone line the AI replies to its own echo (self-talk); prefer
+            # the default (client-side VAD) for telephony.
+            session = AgentSession(
+                llm=build_realtime(cfg),
+                allow_interruptions=True,
+            )
+        else:
+            # DEFAULT: local silero VAD drives turns (server VAD disabled in
+            # build_realtime). This makes allow_interruptions=False legal, which lets
+            # livekit DISCARD inbound audio while the AI speaks — so the AI's own
+            # phone echo never becomes a phantom turn (fixes realtime 自说自话). The
+            # visitor-turn path still works: silero end-of-turn → commit_audio +
+            # generate_reply → reply. REALTIME_ALLOW_INTERRUPT=1 restores barge-in
+            # (allow_interruptions=True), at the cost of re-exposing the echo.
+            session = AgentSession(
+                llm=build_realtime(cfg),
+                vad=build_vad(cfg),
+                allow_interruptions=realtime_allow_interrupt(),
+            )
     else:
         # Pipeline STT→LLM→TTS. Turn detection improves barge-in naturalness but
         # needs a model file. If it isn't available, fall back to VAD-only

@@ -83,6 +83,27 @@ def build_vad(cfg: Settings | None = None):
     return silero.VAD.load(min_silence_duration=min_silence)
 
 
+def _env_flag(name: str, default: str = "0") -> bool:
+    import os
+
+    return os.getenv(name, default).lower() in ("1", "true", "yes")
+
+
+def realtime_allow_interrupt() -> bool:
+    """Barge-in toggle. Default off: the AI finishes its sentence (the recommended
+    setting for phone lines, where echo/noise would otherwise cut it off)."""
+    return _env_flag("REALTIME_ALLOW_INTERRUPT", "0")
+
+
+def realtime_server_vad() -> bool:
+    """Whether to use OpenAI's *server-side* turn detection (default off).
+
+    Off (default) → local silero VAD on the AgentSession drives turns; see
+    build_realtime for why this is the safe default on telephony. On → legacy
+    server-side VAD (only sound with real echo cancellation)."""
+    return _env_flag("REALTIME_SERVER_VAD", "0")
+
+
 def build_realtime(cfg: Settings):
     """Speech-to-speech realtime model (low latency). Still transcribes the
     caller (for slot-filling / dashboard / DB) and supports tool calling.
@@ -102,29 +123,39 @@ def build_realtime(cfg: Settings):
         )
     except Exception:  # noqa: BLE001 — type path varies by SDK; transcript is best-effort
         pass
-    # Phone lines: the AI's own audio echoes back through the handset, and ambient
-    # noise both look like "the caller talking" to the server-VAD, which then
-    # interrupts the AI mid-word — sounds like swallowed syllables (吞字), and it
-    # happens EVEN in a quiet room because the echo IS the AI's own voice. So by
-    # default we do NOT let the model interrupt its own reply, and we make the VAD
-    # less twitchy (higher threshold + longer silence). All env-tunable; set
-    # REALTIME_ALLOW_INTERRUPT=1 to restore barge-in.
     import os  # local import → avoids touching module top (smaller merge surface)
 
-    _allow_interrupt = os.getenv("REALTIME_ALLOW_INTERRUPT", "0").lower() in ("1", "true", "yes")
-    try:
-        from openai.types.beta.realtime.session import TurnDetection
+    # Turn-taking. DEFAULT: disable OpenAI's server-side VAD (turn_detection=None)
+    # and let the AgentSession's local silero VAD drive turns. WHY this is the
+    # default on a phone line: the AI's own audio echoes back through the handset,
+    # and OpenAI's server VAD hears that echo as "the caller talking" → ends a
+    # phantom turn → create_response fires a reply to the echo. The AI ends up
+    # talking to itself before the visitor ever answers (the realtime "自说自话"
+    # bug). With server VAD off, livekit-agents (a) discards inbound audio while the
+    # AI is mid-utterance — only possible with allow_interruptions=False, which
+    # server-side turn detection forbids — so the echo never reaches the model, and
+    # (b) commits the buffer + replies on the LOCAL VAD's end-of-turn. The phone
+    # echo therefore can't become a turn. Reproduced + verified with an echo-loopback
+    # probe (15 self-talk bursts → 1). REALTIME_SERVER_VAD=1 restores server-side
+    # detection (only safe with real echo cancellation, e.g. a browser mic w/ AEC).
+    if realtime_server_vad():
+        try:
+            from openai.types.beta.realtime.session import TurnDetection
 
-        kwargs["turn_detection"] = TurnDetection(
-            type="server_vad",
-            threshold=float(os.getenv("REALTIME_VAD_THRESHOLD", "0.6")),
-            prefix_padding_ms=300,
-            silence_duration_ms=int(os.getenv("REALTIME_SILENCE_MS", "600")),
-            create_response=True,
-            interrupt_response=_allow_interrupt,
-        )
-    except Exception:  # noqa: BLE001 — SDK field variance; defaults still work
-        pass
+            kwargs["turn_detection"] = TurnDetection(
+                type="server_vad",
+                threshold=float(os.getenv("REALTIME_VAD_THRESHOLD", "0.8")),
+                prefix_padding_ms=300,
+                silence_duration_ms=int(os.getenv("REALTIME_SILENCE_MS", "800")),
+                create_response=True,
+                interrupt_response=realtime_allow_interrupt(),
+            )
+        except Exception:  # noqa: BLE001 — SDK field variance; defaults still work
+            pass
+    else:
+        # Explicit None → session.update sends `turn_detection: null`, which truly
+        # disables OpenAI server VAD (verified: the field serializes, not omitted).
+        kwargs["turn_detection"] = None
     # Noise reduction must match the mic: near_field = phone handset / headset
     # (the call case here); far_field = laptop / conference-room mic. The wrong
     # mode distorts speech. REALTIME_NOISE_REDUCTION=off disables it entirely.
