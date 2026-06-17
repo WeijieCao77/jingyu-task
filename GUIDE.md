@@ -157,9 +157,11 @@ C:\path\to\livekit-server.exe --dev              # ws://localhost:7880, devkey/s
 | `OPENAI_API_KEY` | — | **唯一必填**。STT+LLM+TTS / realtime 全用它 |
 | `VOICE_MODE` | `realtime` | `realtime`(s2s 提速) / `pipeline`(STT→LLM→TTS 回退) |
 | `REALTIME_MODEL` `REALTIME_VOICE` | `gpt-realtime` / `marin` | realtime 模型与音色 |
-| `REALTIME_ALLOW_INTERRUPT` | `0` | 0=AI 把话说完不被噪音/回声打断（推荐）；1=允许 barge-in |
+| `REALTIME_SERVER_VAD` | `0` | 0=本地 silero VAD 判轮次（默认，防电话「自说自话」）；1=OpenAI 服务端 VAD（仅在有回声消除时安全） |
+| `REALTIME_ECHO_SETTLE_MS` | `1000` | 本地 VAD 模式下，AI 说完后再静默多少 ms 才重新听——让听筒回声的「尾巴」散掉，避免 AI 接自己的回声 |
+| `REALTIME_ALLOW_INTERRUPT` | `0` | 0=AI 把话说完不被噪音/回声打断（推荐）；1=允许 barge-in（同时关掉回声护栏） |
 | `REALTIME_NOISE_REDUCTION` | `near_field` | 电话/耳麦=near_field；会议=far_field；off=关 |
-| `REALTIME_VAD_THRESHOLD` `REALTIME_SILENCE_MS` | `0.8` / `800` | server-VAD 灵敏度 / 判定「说完」的静音时长，越大越不易被打断 |
+| `REALTIME_VAD_THRESHOLD` `REALTIME_SILENCE_MS` | `0.8` / `800` | **仅 `REALTIME_SERVER_VAD=1` 时生效**：server-VAD 灵敏度 / 判定「说完」的静音时长 |
 | `LLM_PROVIDER` `LLM_MODEL` | `openai` / `gpt-4o-mini` | pipeline 时用；可切 `anthropic`/`claude-haiku-4-5`（需 `ANTHROPIC_API_KEY`） |
 | `LLM_BASE_URL` | 空 | 指向任一 OpenAI 兼容端点（OpenRouter/DashScope/DeepSeek…）即用任意模型，见 MODELS.md |
 | `STT_PROVIDER` `STT_MODEL` `STT_LANGUAGE` | `openai` / `gpt-4o-transcribe` / `zh` | 可切 `deepgram` |
@@ -255,6 +257,7 @@ Windows：`$env:PYTHONPATH="src"; $env:PYTHONUTF8="1"` 后再 `pytest -q`。
 | Railway 容器崩 `set: pipefail: invalid option` | CRLF 行尾 → Dockerfile 已 `sed` 去 `\r` |
 | Railway 密钥设了仍 401/解析失败 | 别用 `--stdin`（BOM 污染）→ 用 `railway variable set "KEY=VALUE"` |
 | 电话里 AI 吞字/中途断音 | realtime 默认禁打断 + near_field 降噪（`REALTIME_*` 可调）；残留多为跨太平洋网络抖动 → 可试 `VOICE_MODE=pipeline` 或就近区域 |
+| 电话里 AI「自说自话」（没等访客答就自己接话） | 听筒回声被误当成访客说话。已修：默认本地 VAD（`REALTIME_SERVER_VAD=0`）+ 说完后 `REALTIME_ECHO_SETTLE_MS` 静默护栏丢弃回声尾巴。仍残留可调大 settle（如 1500）|
 | Telegram 卡片发不出/按钮不可点 | `PUBLIC_BASE_URL` 必须是公网/隧道地址，不能是 localhost |
 
 > 更全的首跑排查（症状→根因→处置 + 验收断言）见 [SMOKE_CHECK.md](SMOKE_CHECK.md) 与 [LOCAL_RUN_ISSUES.md](LOCAL_RUN_ISSUES.md)。

@@ -718,3 +718,23 @@ reason="job crashed"
 ### 真机实拨反馈（同日，两处）
 - **转人工不能自动外呼门卫**：原 `_on_escalate` 一触发就 `dial_guard` 直接打门卫手机——用户反馈应**先群通知、门卫点"接入"后再打**。已改：`_on_escalate` 去掉自动外呼，群通知带 `/takeover?room=...&reason=...` 链接；门卫点开→选接听方式（拨我手机/浏览器介入），点了才外呼。`/takeover` 增加 `?room=`（转人工时还没访客 token，用房间号定位）入口，与卡片 `?token=` 共用同一页。
 - **字母核对别用英文**：原 prompt 用"Dog 的 D / Boy 的 B"等英文单词消歧——国内很多访客听不懂。已改 `prompts.py`【核对确认】：改用**中文拼音联想**（北京的 B、东北的 D、朋友的 P、天津的 T、广州的 G、长城的 C…，E 用"鹅"、V 用"胜利手势"、U 用"马蹄形"），并主动用中文词反问。prompt 内已无任何英文消歧词。⏳ 待真机复测念字母效果。
+
+---
+
+## 2026-06-17 🔴 P0：realtime 电话「自说自话」——AI 没等访客回答就接自己的回声
+
+**症状（用户真机反馈）**：realtime 模式下 AI 会"自说自话"——开场白说完，还没等访客开口，AI 自己又接着说话。
+
+**怎么定位的（无声/回声探测，不用真机）**：写了两个程序化探测客户端连进 LiveKit Cloud（自动派单→云端 worker 入房），捕获 agent 音轨、按 RMS 数"说话段(burst)"：
+- `probe_selftalk.py`（**不发任何音频**）：agent 只出 **1 段**（开场白 ~8s）后安静。→ 证明**不是**自发的二次回复 / 双重 generate_reply（排除怀疑方向①③）。
+- `probe_echo.py`（**把 agent 自己的声音衰减 0.45 回灌**当"听筒回声"）：agent 出 **15 段**、每 ~2s 一段的反馈循环。→ **复现**，且证明是**输入触发**的。
+
+**真·根因**：电话听筒把 AI 自己的声音回灌进线路；OpenAI **服务端 VAD** 把这段回声当成"访客在说话"，回声一停就判定"该访客说完了"→ `create_response=True` 自动对着回声生成回复 → AI 接自己的话。病根是 realtime 默认用 OpenAI 服务端 turn detection：此时 livekit 强制 `allow_interruptions=True`（给 False 会 ValueError 崩 job，见 06-14 条），于是**框架无法在 AI 说话时丢弃回声**（丢弃只在 `allow_interruptions=False` 的不可打断语音上做）。
+
+**修复（两层，`providers.py` + `agent.py`）**：
+1. **关掉服务端 VAD，改用本地 silero VAD 判轮次**（`REALTIME_SERVER_VAD=0` 默认）。`build_realtime` 给 RealtimeModel 传 `turn_detection=None`（实测序列化为 `turn_detection: null`，真关掉服务端 VAD；不是省略=保留默认）。AgentSession 加 `vad=build_vad`、`allow_interruptions=realtime_allow_interrupt()`（默认 False，现在**合法**了）。这样 AI 说话时框架丢弃入站音频（`discard_audio_if_uninterruptible`），回声进不去；访客轮次照常：本地 VAD 判完 → `commit_audio + generate_reply` → 回复。**单这层 15→3 段**。
+2. **回声尾巴护栏（echo-settle）**：只关服务端 VAD 还残留——AI 说完后回声**尾巴**还会再飘 ~1 个往返才到，本地 VAD 把尾巴当访客轮次。`agent.py` 监听 `agent_state_changed`：AI 一开口就静音麦克风，回到 listening 后再等 `REALTIME_ECHO_SETTLE_MS`(默认 **1000ms**) 才重新听，让尾巴散掉。跨太平洋往返 ~0.4–0.5s，600ms 边界擦枪还漏 1 段，**1000ms 清零**。人工介入时置 `ears_locked` 让门卫接管麦克风、护栏不再自动开麦。仅在 realtime + 本地VAD + 不允许打断时启用。
+
+**验证（部署后探测，job crashed 全程 0）**：echo 探测 **15→1 段**（0.45 重复两次 + 0.6 更狠都只剩开场白）；silent 探测 1 段开场白不崩；**speech 探测**（用 OpenAI TTS 合成"车牌沪A12345找蓝色鲸鱼送货"回灌）agent **正常回复**（clip 后 2.7s 起、~5.5s）——证明护栏没把 AI 弄聋。Railway 日志 job crashed / Traceback / ValueError / ERROR 全 0。94 单测全绿。
+
+**给远程/教训**：① realtime 电话回声自说自话的根因是**服务端 VAD + 无法丢回声**，解法是**本地 VAD（allow_interruptions=False 才能丢回声）+ 说完后 settle 静默**；② 探测要能**回灌 agent 自己的音频**才能复现电话回声类 bug（纯静默探测复现不了）——`capture_frame` 是协程要 `await`（踩过）；③ 服务端 VAD 想保留可设 `REALTIME_SERVER_VAD=1`（仅在有真回声消除时安全）；④ `REALTIME_VAD_THRESHOLD/SILENCE_MS` 现在只在服务端 VAD 模式生效。探测脚本：`%TEMP%\probe_selftalk.py` / `probe_echo.py` / `probe_speech.py`。
