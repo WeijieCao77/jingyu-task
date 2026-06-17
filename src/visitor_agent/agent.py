@@ -385,6 +385,57 @@ async def entrypoint(ctx: JobContext) -> None:
     last_user = [time.monotonic()]  # last visitor utterance time (idle watchdog)
     decided = [False]  # set True once the guard approves/rejects → then we hang up
 
+    # --- Echo guard (realtime + local VAD, no barge-in) ---
+    # A phone handset echoes the AI's own voice back into the line. livekit already
+    # discards that echo WHILE the AI is speaking (allow_interruptions=False), but
+    # the echo TAIL keeps arriving for ~a round-trip AFTER the AI stops — and the
+    # local VAD can mishear that tail as a visitor turn, so the AI answers its own
+    # echo (the 自说自话 loop; reproduced as residual bursts after the server-VAD
+    # fix). So we hold the mic muted through the AI's turn and for a short settle
+    # window after it, so the tail is gone before we listen again. Disabled when
+    # barge-in is on (REALTIME_ALLOW_INTERRUPT=1) — listening mid-reply is the whole
+    # point there — and in pipeline / server-VAD modes.
+    _echo_guard = (cfg.voice_mode == "realtime"
+                   and not realtime_server_vad()
+                   and not realtime_allow_interrupt())
+    ears_locked = [False]   # set on human takeover → the guard owns the mic, don't auto-unmute
+    _resume_handle = [None]
+    if _echo_guard:
+        import os as _os
+
+        _settle = max(0.0, float(_os.getenv("REALTIME_ECHO_SETTLE_MS", "600")) / 1000.0)
+
+        def _set_ears(on: bool) -> None:
+            try:
+                session.input.set_audio_enabled(on)
+            except Exception:  # noqa: BLE001
+                logger.exception("echo-guard set ears failed")
+
+        @session.on("agent_state_changed")
+        def _echo_on_state(ev) -> None:  # noqa: ANN001
+            if ears_locked[0]:
+                return
+            new = getattr(ev, "new_state", None)
+            if new == "speaking":
+                if _resume_handle[0]:
+                    _resume_handle[0].cancel()
+                _set_ears(False)
+            elif new in ("listening", "idle"):
+                if _resume_handle[0]:
+                    _resume_handle[0].cancel()
+
+                async def _resume() -> None:
+                    try:
+                        await asyncio.sleep(_settle)
+                        if not ears_locked[0]:
+                            _set_ears(True)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:  # noqa: BLE001
+                        logger.exception("echo-guard resume failed")
+
+                _resume_handle[0] = asyncio.create_task(_resume())
+
     # Stream the live transcript to the dashboard (both visitor + guard-query).
     @session.on("conversation_item_added")
     def _on_item(ev) -> None:  # noqa: ANN001
@@ -519,6 +570,9 @@ async def entrypoint(ctx: JobContext) -> None:
                 _prefill_caller_phone(participant)  # SIP caller joined → prefill
                 return
             sink("human_joined", None, f"保安已接入通话（{identity}）", None)
+            # A human now owns the mic — stop the echo guard from auto-unmuting the
+            # AI's ears after its DTMF-feedback lines (the takeover keeps them muted).
+            ears_locked[0] = True
             is_phone_guard = identity == "guard-phone"
             # Neutral line — the VISITOR hears it too, so DON'T read keypad
             # instructions to the guard here (那些在卡片/介入页上已经写了).
