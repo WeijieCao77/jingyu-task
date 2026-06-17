@@ -317,9 +317,15 @@ async def entrypoint(ctx: JobContext) -> None:
             link = f"{base}/takeover?room={quote(ctx.room.name, safe='')}"
             if reason:
                 link += f"&reason={quote(reason, safe='')}"
-            txt = (f"⚠️ 访客请求转人工{('：' + reason) if reason else ''}\n"
-                   f"房间：{ctx.room.name}\n"
-                   f"👉 是否接入？点此选择接听方式（拨我手机 / 浏览器介入）：\n{link}")
+            rn = ctx.room.name or ""
+            caller = rn.split("_")[1] if rn.startswith("call_") and len(rn.split("_")) > 1 else "—"
+            # Markdown card with a tappable button (not a raw URL) — same look as the
+            # visitor card; the link opens the takeover page (拨我手机 / 浏览器介入).
+            txt = (f"## ⚠️ 访客请求转人工\n"
+                   f"> <font color=\"warning\">{reason or '访客要求真人'}</font>\n"
+                   f"> **主叫**：{caller}\n\n"
+                   f"<font color=\"comment\">———— 请门卫处理 ————</font>\n"
+                   f"[【 📞 人工介入 · 选择接听方式 】]({link})")
             await dispatch.push_alert(cfg, txt)
 
         agent = VisitorAgent(reg, on_escalate=_on_escalate)
@@ -467,6 +473,16 @@ async def entrypoint(ctx: JobContext) -> None:
                 return
             d = str(digit)
             from . import takeover
+
+            def _announce_keypad(text: str) -> None:
+                async def _go() -> None:
+                    try:
+                        await _speak(session, cfg, text)
+                    except Exception:  # noqa: BLE001
+                        logger.exception("keypad announce error")
+
+                asyncio.create_task(_go())
+
             if d == "1":
                 sink("confirmed", None, "门卫电话按键放行（1）", None)
                 try:
@@ -474,12 +490,14 @@ async def entrypoint(ctx: JobContext) -> None:
                                      getattr(reg.notifier, "last_visit_id", None), cfg.timezone)
                 except Exception:  # noqa: BLE001
                     logger.exception("dtmf release error")
+                _announce_keypad("好的，已经为您放行，请进，栏杆已经抬起。")  # feedback
             elif d == "2":
                 sink("escalation", None, "门卫电话按键拒绝放行（2）", None)
                 try:
                     takeover.deny(reg.info.to_dict())
                 except Exception:  # noqa: BLE001
                     logger.exception("dtmf deny error")
+                _announce_keypad("好的，本次未能放行，已记录，麻烦您配合，谢谢。")  # feedback
 
         # Human takeover: a guard joining (identity 'guard*') makes the AI hand off.
         @ctx.room.on("participant_connected")
@@ -489,21 +507,29 @@ async def entrypoint(ctx: JobContext) -> None:
                 _prefill_caller_phone(participant)  # SIP caller joined → prefill
                 return
             sink("human_joined", None, f"保安已接入通话（{identity}）", None)
-            # A dialed-in guard ('guard-phone') decides with the keypad → tell them.
-            line = ("门卫师傅您好，您已接入。和访客核对后，按 1 放行、按 2 拒绝。"
-                    if identity == "guard-phone"
-                    else "门卫师傅来了，由他来跟您说，再见。")
+            is_phone_guard = identity == "guard-phone"
+            # Neutral line — the VISITOR hears it too, so DON'T read keypad
+            # instructions to the guard here (那些在卡片/介入页上已经写了).
+            line = ("好的，已经帮您接通门卫，下面由门卫师傅为您处理。"
+                    if is_phone_guard
+                    else "门卫师傅来了，由他来跟您说，我先退下。")
 
             async def _handoff() -> None:
                 try:
-                    await _speak(session, cfg, line, allow_interruptions=False)
+                    if is_phone_guard:
+                        # Keep the AI in the room so it can VOICE the keypad result
+                        # (按 1 放行 / 按 2 拒绝 → 给门卫反馈). Mute its ears so it
+                        # won't interject while the guard and visitor talk.
+                        try:
+                            session.input.set_audio_enabled(False)
+                        except Exception:  # noqa: BLE001
+                            logger.exception("mute input failed")
+                        await _speak(session, cfg, line, allow_interruptions=False)
+                    else:
+                        await _speak(session, cfg, line, allow_interruptions=False)
+                        await session.aclose()  # browser guard talks + releases on dashboard
                 except Exception:  # noqa: BLE001
-                    logger.exception("handoff say error")
-                finally:
-                    try:
-                        await session.aclose()  # AI leaves; guard + visitor remain
-                    except Exception:  # noqa: BLE001
-                        logger.exception("handoff aclose error")
+                    logger.exception("handoff error")
 
             asyncio.create_task(_handoff())
 
