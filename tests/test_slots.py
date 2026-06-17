@@ -34,7 +34,8 @@ def test_incremental_fill_and_completeness():
     assert info.missing_fields() == ["phone"]
     info.update(phone="13800138000")
     assert info.is_complete()
-    assert info.human_summary() == "沪A12345，蓝色鲸鱼，送货"
+    # phone is included so the AI reads back the real recorded number, not a guess
+    assert info.human_summary() == "沪A12345，蓝色鲸鱼，送货，手机13800138000"
 
 
 def test_partial_update_does_not_overwrite_with_empty():

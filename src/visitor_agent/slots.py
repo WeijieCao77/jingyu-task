@@ -113,7 +113,9 @@ class VisitorInfo:
         return self.entry_time
 
     def human_summary(self) -> str:
-        """Short, natural read-back used in the agent's confirmation line."""
+        """Short, natural read-back used in the agent's confirmation line. Includes
+        the phone (often prefilled from caller-ID) so the AI reads back the REAL
+        number from the tool result instead of inventing one from a prompt example."""
         parts = []
         if self.plate:
             parts.append(self.plate)
@@ -121,6 +123,8 @@ class VisitorInfo:
             parts.append(self.company)
         if self.reason:
             parts.append(self.reason)
+        if self.phone:
+            parts.append(f"手机{self.phone}")
         return "，".join(parts)
 
     def missing_labels_zh(self) -> list[str]:
