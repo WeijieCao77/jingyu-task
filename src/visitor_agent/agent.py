@@ -59,17 +59,23 @@ from .session_logic import LiveNotifier, RegistrationSession, make_db_lookup
 logger = logging.getLogger("visitor_agent.agent")
 
 
-async def _speak(session, cfg, text: str, *, allow_interruptions: bool = True) -> None:
+async def _speak(session, cfg, text: str, *, allow_interruptions: bool = True,
+                 verbatim: bool = False) -> None:
     """Speak a line regardless of voice mode.
 
     Realtime (speech-to-speech) has no standalone TTS and can't `say()` a fixed
     string — calling it raises RuntimeError and crashes the job — so we ask the
-    model to voice the line instead. Pipeline keeps the deterministic `say()`.
+    model to voice the line instead. `verbatim=True` makes it read the line
+    word-for-word (used for the fixed, consistent greeting); otherwise it may
+    polish the tone. Pipeline always uses the deterministic `say()`.
     """
     if cfg.voice_mode == "realtime":
-        await session.generate_reply(
-            instructions=f"用自然的中文普通话对访客说这句话（可润色语气，但保持原意）：{text}"
-        )
+        if verbatim:
+            instr = (f"严格逐字念出下面这句话，一字不差，不要改写、不要增减、"
+                     f"也不要在前后加任何别的话：{text}")
+        else:
+            instr = f"用自然的中文普通话对访客说这句话（可润色语气，但保持原意）：{text}"
+        await session.generate_reply(instructions=instr)
     else:
         await session.say(text, allow_interruptions=allow_interruptions)
 
@@ -511,7 +517,8 @@ async def entrypoint(ctx: JobContext) -> None:
         # Phone calls prefill the mobile from caller-ID → skip asking for it (省一问).
         # No number (caller-ID stripped, or browser/QR access) → fall back to asking.
         greeting = GREETING if (reg and reg.info.phone) else GREETING_ASK_PHONE
-    await _speak(session, cfg, greeting, allow_interruptions=True)
+    # Fixed opener: read it word-for-word so every call greets identically.
+    await _speak(session, cfg, greeting, allow_interruptions=True, verbatim=True)
 
     # Keep the line open while the visitor waits for the guard's decision — DON'T
     # hang up just because registration finished (user feedback: 让访客等放行的
