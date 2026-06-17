@@ -45,7 +45,7 @@ from livekit.plugins import silero as _silero  # noqa: E402,F401
 
 from .config import get_settings
 from .db import repo
-from .prompts import GREETING, SYSTEM_PROMPT
+from .prompts import GREETING, GREETING_ASK_PHONE, SYSTEM_PROMPT
 from .providers import (
     build_llm,
     build_realtime,
@@ -505,10 +505,12 @@ async def entrypoint(ctx: JobContext) -> None:
 
     # Agent speaks first — the 25-second clock starts here. realtime can't say() a
     # fixed string, so _speak() asks the model to voice it; pipeline say()s it.
-    greeting = (
-        "门卫您好，您想查什么？比如今天放行了多少辆车、最近哪个时段最忙。"
-        if is_guard else GREETING
-    )
+    if is_guard:
+        greeting = "门卫您好，您想查什么？比如今天放行了多少辆车、最近哪个时段最忙。"
+    else:
+        # Phone calls prefill the mobile from caller-ID → skip asking for it (省一问).
+        # No number (caller-ID stripped, or browser/QR access) → fall back to asking.
+        greeting = GREETING if (reg and reg.info.phone) else GREETING_ASK_PHONE
     await _speak(session, cfg, greeting, allow_interruptions=True)
 
     # Keep the line open while the visitor waits for the guard's decision — DON'T
