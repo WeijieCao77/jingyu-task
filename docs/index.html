@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- ↓↓↓ 浏览器标签页标题，改成你的名字 / Browser tab title -->
-  <title>个人主页 · Personal Homepage</title>
-  <meta name="description" content="个人主页 / Personal homepage" />
+  <title>曹炜杰 Weijie (Jay) Cao · 数据分析师 / Data Analyst</title>
+  <meta name="description" content="曹炜杰 Weijie (Jay) Cao — Data Analyst | 个人主页 / Personal homepage" />
 
   <style>
     :root {
@@ -170,35 +170,37 @@
      - 简历：把简历命名为 resume.pdf 放进 assets/ 文件夹即可
      ===================================================================== */
   const CONFIG = {
-    name:    { zh: "你的名字",        en: "Your Name" },
-    title:   { zh: "你的职位 / 头衔",  en: "Your Title / Role" },
-    tagline: { zh: "用一句话介绍你自己，比如：热爱技术、专注产品的工程师。",
-               en: "One sentence about you, e.g. an engineer who loves building products." },
+    name:    { zh: "曹炜杰",          en: "Weijie (Jay) Cao" },
+    title:   { zh: "数据分析师",       en: "Data Analyst" },
+    tagline: { zh: "把多源杂乱数据变成可靠的 SQL 管道、BI 看板与统计 / 机器学习模型，驱动业务决策。",
+               en: "Turning messy multi-source data into reliable SQL pipelines, BI dashboards, and statistical / ML models that drive decisions." },
 
     about: {
-      zh: "在这里写你的自我介绍。\n你可以介绍自己的背景、经历、专业方向，以及正在寻找的机会。\n（换行直接按回车即可。）",
-      en: "Write your self-introduction here.\nTalk about your background, experience, focus areas, and what you're looking for.\n(Press Enter for a new line.)"
+      zh: "数学统计本科 + 金融数学与金融科技硕士（波士顿大学），已通过 FRM 一级，约 2 年美国数据分析全职经验。\n熟练用 SQL / Python / Looker Studio 构建数据管道与可视化看板，曾独立负责 5 家长期客户、每年交付约 40 个定制看板；并从 0 到 1 独立交付 2 个 production 级全栈 SaaS（员工保留预测系统、海归福利助手），熟练运用 Cursor、Claude Code 等 AI 辅助编程工具。\n期望在上海加入数据分析 / 数据科学团队。",
+      en: "Data analyst with a B.A. in Mathematics & Statistics and an M.Sc. in Mathematical Finance & FinTech (Boston University), FRM Part I, and 2+ years of full-time experience across fintech, quant, and HR analytics.\nI build reliable SQL pipelines and BI dashboards (40+ custom Looker Studio dashboards a year) and have shipped two production full-stack SaaS apps from 0 to 1 with AI-assisted tools (Cursor, Claude Code).\nLooking to join a data analytics / data science team in Shanghai."
     },
 
-    // 照片路径：放到 assets/profile.jpg 即可；找不到时会显示默认占位头像
+    // 照片路径：把照片命名为 profile.jpg 放进 assets/ 即可自动显示；找不到时显示占位头像
     photo: "assets/profile.jpg",
 
-    // 简历下载：放到 assets/resume.pdf 即可
-    resume: "assets/resume.pdf",
+    // 简历下载：中文版 / 英文版（主页按当前语言自动选择对应版本）
+    resume: { zh: "assets/resume-zh.pdf", en: "assets/resume-en.pdf" },
 
-    // 技能标签（中英可不同；不需要就把数组清空 []，或删掉上面的 skills 区块）
+    // 技能标签
     skills: {
-      zh: ["技能一", "技能二", "技能三", "工具 / 语言"],
-      en: ["Skill 1", "Skill 2", "Skill 3", "Tools / Languages"]
+      zh: ["SQL", "Python (Pandas / NumPy / scikit-learn)", "R", "Looker Studio / BI 看板",
+           "机器学习 (XGBoost / 随机森林)", "时间序列 (ARIMA)", "A/B 检验", "NLP / SHAP",
+           "AI 辅助开发 (Cursor / Claude Code)"],
+      en: ["SQL", "Python (Pandas / NumPy / scikit-learn)", "R", "Looker Studio / BI",
+           "Machine Learning (XGBoost / Random Forest)", "Time Series (ARIMA)", "A/B Testing",
+           "NLP / SHAP", "AI-assisted Dev (Cursor / Claude Code)"]
     },
 
     // 联系方式 / 社交链接。type 决定图标：github / email / link / linkedin
-    // 不想公开邮箱就把 email 那一行删掉。
     contacts: [
-      { type: "github", label: "GitHub", url: "https://github.com/weijiecao77" },
-      { type: "email",  label: "Email",  url: "mailto:your-email@example.com" }
-      // { type: "linkedin", label: "LinkedIn", url: "https://www.linkedin.com/in/your-id" },
-      // { type: "link", label: "个人博客 / Blog", url: "https://example.com" }
+      { type: "github",   label: "GitHub",   url: "https://github.com/WeijieCao77" },
+      { type: "linkedin", label: "LinkedIn", url: "https://www.linkedin.com/in/weijie-cao-bu" },
+      { type: "email",    label: "Email",    url: "mailto:weijiecao77@gmail.com" }
     ]
   };
   /* ===================== CONFIG 到此结束 / END OF CONFIG ===================== */
@@ -241,9 +243,10 @@
 
     // 操作按钮：下载简历 + 第一个社交链接
     const resumeLabel = (lang === "en") ? "Download Resume" : "下载简历";
+    const resumeHref = (typeof CONFIG.resume === "string") ? CONFIG.resume : t(CONFIG.resume);
     const actions = document.getElementById("actions");
     actions.innerHTML =
-      '<a class="btn btn-primary" href="' + CONFIG.resume + '" download>' +
+      '<a class="btn btn-primary" href="' + resumeHref + '" download>' +
       ICONS.download + '<span>' + resumeLabel + '</span></a>' +
       CONFIG.contacts.slice(0, 1).map(c =>
         '<a class="btn btn-ghost" href="' + c.url + '" target="_blank" rel="noopener">' +

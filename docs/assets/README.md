@@ -6,8 +6,12 @@ Put your personal files here. The file names must match **exactly** — the home
 
 | 文件名 / File name | 用途 / Purpose | 说明 / Notes |
 |---|---|---|
-| `profile.jpg` | 职业照 / Portrait | 建议正方形，例如 600×600；命名必须是 `profile.jpg` |
-| `resume.pdf`  | 简历 / Resume   | 覆盖当前的占位 PDF 即可 |
+| `profile.jpg`   | 职业照 / Portrait | 建议正方形，例如 600×600；命名必须是 `profile.jpg` |
+| `resume-zh.pdf` | 中文简历 / Resume (CN) | 切到「中文」时下载这份 |
+| `resume-en.pdf` | 英文简历 / Resume (EN) | 切到「EN」时下载这份 |
+
+> 中英文简历已就位。若要更新简历，用同名文件覆盖即可。
+> Both resumes are already in place — replace by overwriting the same file name.
 
 ## 怎么替换 / How to replace
 
